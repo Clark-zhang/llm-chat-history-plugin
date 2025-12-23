@@ -2,7 +2,7 @@
   "name": "llm-chat-history",
   "displayName": "LLM Chat History (Cursor - Beta)",
   "description": "⚠️ Beta: For Cursor IDE on Windows only. Save LLM chat history to markdown files.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
