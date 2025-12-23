@@ -30,9 +30,9 @@ try {
     
     // Try multiple Electron versions (Cursor/VSCode might use different versions)
     const versionsToTry = [
-        electronVersion,  // From package.json
-        '39.0.0',        // Cursor common version (NODE_MODULE_VERSION 136)
-        '37.0.0',        // Electron 37 (NODE_MODULE_VERSION 136)
+        '37.0.0',        // Cursor common version (NODE_MODULE_VERSION 136)
+        '38.0.0',        // Electron 38 (NODE_MODULE_VERSION 136)
+        electronVersion, // From package.json (might be different)
         '36.0.0',        // Electron 36 (NODE_MODULE_VERSION 135)
         '33.0.0',        // Electron 33 (NODE_MODULE_VERSION 130)
     ];
