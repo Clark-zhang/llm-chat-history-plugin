@@ -1,0 +1,47 @@
+# Development files
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+.gitattributes
+.editorconfig
+tsconfig.json
+node_modules/**
+**/*.map
+
+# Documentation (exclude from package, keep only README)
+*.md
+!README.md
+
+# Build scripts
+setup-sqlite.js
+verify-setup.js
+obfuscate.js
+
+# Project planning docs
+Cursor聊天记录导出实施方案.md
+COMBINED_GUIDE.md
+*.spec.md
+
+# Development directories
+.specstory/**
+.cursorindexingignore
+
+# Test files
+**/*.test.ts
+**/*.test.js
+test/**
+tests/**
+
+# CI/CD
+.github/**
+.gitlab-ci.yml
+.travis.yml
+
+# Misc
+.DS_Store
+*.log
+npm-debug.log*
+icon-generator.html
+
+

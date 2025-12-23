@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.cursor-history/
+*.vsix
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
+.specstory/**

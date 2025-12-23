@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Chat History Icon Generator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 40px;
+            background: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        #icon-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        #icon {
+            width: 128px;
+            height: 128px;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+        }
+        
+        .instructions {
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .instructions h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .instructions ol {
+            line-height: 1.8;
+        }
+        
+        .instructions code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #005a9e;
+        }
+    </style>
+</head>
+<body>
+    <div id="icon-container">
+        <svg id="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+            <!-- Gradient Background -->
+            <defs>
+                <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="grad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#f093fb;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#f5576c;stop-opacity:0.3" />
+                </linearGradient>
+            </defs>
+            
+            <!-- Background with rounded corners -->
+            <rect width="128" height="128" rx="24" fill="url(#grad1)"/>
+            
+            <!-- Chat bubble (bottom) -->
+            <g transform="translate(20, 45)">
+                <rect x="0" y="22" width="44" height="32" rx="8" fill="white" opacity="0.9"/>
+                <polygon points="8,54 14,54 10,60" fill="white" opacity="0.9"/>
+            </g>
+            
+            <!-- Chat bubble (middle) -->
+            <g transform="translate(50, 35)">
+                <rect x="0" y="12" width="56" height="32" rx="8" fill="white" opacity="0.95"/>
+                <polygon points="48,44 54,44 50,50" fill="white" opacity="0.95"/>
+            </g>
+            
+            <!-- Chat bubble (top - highlighted) -->
+            <g transform="translate(30, 15)">
+                <rect x="0" y="0" width="64" height="38" rx="10" fill="white"/>
+                <polygon points="52,38 58,38 54,46" fill="white"/>
+                
+                <!-- Document icon inside top bubble -->
+                <g transform="translate(16, 8)">
+                    <rect x="0" y="0" width="32" height="22" rx="2" fill="#667eea" opacity="0.2"/>
+                    <line x1="6" y1="6" x2="26" y2="6" stroke="#667eea" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                    <line x1="6" y1="11" x2="22" y2="11" stroke="#667eea" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                    <line x1="6" y1="16" x2="24" y2="16" stroke="#667eea" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                </g>
+            </g>
+            
+            <!-- Sparkle effect (top right) -->
+            <circle cx="100" cy="25" r="3" fill="white" opacity="0.8"/>
+            <circle cx="110" cy="35" r="2" fill="white" opacity="0.6"/>
+            <circle cx="95" cy="40" r="2" fill="white" opacity="0.7"/>
+        </svg>
+    </div>
+    
+    <button onclick="downloadIcon()">下载图标为 PNG</button>
+    
+    <div class="instructions">
+        <h2>📋 使用说明</h2>
+        <ol>
+            <li>点击上方的 <strong>"下载图标为 PNG"</strong> 按钮</li>
+            <li>图标将自动保存为 <code>icon.png</code></li>
+            <li>将下载的 <code>icon.png</code> 移动到项目根目录：<code>D:\Projects\llm_chat_history\</code></li>
+            <li>在 <code>package.json</code> 中添加：
+                <pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto;">"icon": "icon.png",</pre>
+            </li>
+            <li>重新打包：<code>vsce package --allow-missing-repository</code></li>
+        </ol>
+        
+        <h3>🎨 设计说明</h3>
+        <ul>
+            <li>💜 <strong>渐变背景</strong>：紫蓝渐变，代表 AI 和科技感</li>
+            <li>💬 <strong>聊天气泡</strong>：三个层叠的对话框，象征对话历史</li>
+            <li>📄 <strong>文档线条</strong>：顶部气泡内的文档图标，代表 Markdown 导出</li>
+            <li>✨ <strong>光点装饰</strong>：增加现代感和活力</li>
+        </ul>
+        
+        <p><strong>提示</strong>：如果自动下载失败，可以右键点击上方图标 → 另存为图片</p>
+    </div>
+
+    <script>
+        function downloadIcon() {
+            const svg = document.getElementById('icon');
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            
+            const data = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([data], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            
+            const img = new Image();
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob(function(blob) {
+                    const link = document.createElement('a');
+                    link.download = 'icon.png';
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    URL.revokeObjectURL(url);
+                });
+            };
+            img.src = url;
+        }
+    </script>
+</body>
+</html>
+

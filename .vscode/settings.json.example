@@ -1,0 +1,7 @@
+{
+  "chatHistory.autoSave": true,
+  "chatHistory.outputDirectory": ".cursor-history",
+  "chatHistory.useUTC": true
+}
+
+
