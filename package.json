@@ -75,7 +75,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile && npm run obfuscate",
+    "vscode:prepublish": "npm run setup && npm run compile && npm run obfuscate",
     "compile": "tsc -p ./",
     "obfuscate": "node obfuscate.js",
     "build": "npm run compile && npm run obfuscate",
@@ -83,7 +83,8 @@
     "pretest": "npm run compile",
     "postinstall": "node setup-sqlite.js",
     "setup": "node setup-sqlite.js",
-    "verify": "node verify-setup.js"
+    "verify": "node verify-setup.js",
+    "package": "npm run setup && npx vsce package"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",

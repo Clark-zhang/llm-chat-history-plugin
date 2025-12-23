@@ -6,7 +6,12 @@ src/**
 .gitattributes
 .editorconfig
 tsconfig.json
-node_modules/**
+# Keep node_modules for production dependencies (better-sqlite3 needs native binaries)
+# node_modules/**
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/*.md
+node_modules/**/.github/**
 **/*.map
 
 # Documentation (exclude from package, keep only README)
