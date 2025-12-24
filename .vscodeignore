@@ -7,6 +7,8 @@ src/**
 .editorconfig
 tsconfig.json
 # Keep node_modules for production dependencies (better-sqlite3 needs native binaries)
+# Note: We include one version of the binary for immediate use
+# SqliteLoader will download the correct version if needed at runtime
 # node_modules/**
 node_modules/**/test/**
 node_modules/**/tests/**
@@ -14,14 +16,15 @@ node_modules/**/*.md
 node_modules/**/.github/**
 **/*.map
 
-# Documentation (exclude from package, keep only README)
+# Documentation (exclude from package, keep only README and quick fix)
 *.md
 !README.md
+!QUICK_FIX.md
 
-# Build scripts
-setup-sqlite.js
+# Build scripts (keep setup-sqlite.js for potential manual use)
 verify-setup.js
 obfuscate.js
+fix-native-module.js
 
 # Project planning docs
 Cursor聊天记录导出实施方案.md

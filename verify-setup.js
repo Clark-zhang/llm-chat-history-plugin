@@ -9,6 +9,13 @@ const path = require('path');
 
 console.log('🔍 Verifying better-sqlite3 installation...\n');
 
+// Display system information
+console.log('📊 System Information:');
+console.log(`   Node.js version: ${process.version}`);
+console.log(`   Platform: ${process.platform} ${process.arch}`);
+console.log(`   NODE_MODULE_VERSION: ${process.versions.modules}`);
+console.log('');
+
 const checks = [
     {
         name: 'Package installed',
@@ -18,7 +25,17 @@ const checks = [
     },
     {
         name: 'Binary exists',
-        check: () => fs.existsSync(path.join(__dirname, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node')),
+        check: () => {
+            const binaryPath = path.join(__dirname, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+            const exists = fs.existsSync(binaryPath);
+            if (exists) {
+                const stats = fs.statSync(binaryPath);
+                console.log(`   Binary path: ${binaryPath}`);
+                console.log(`   Binary size: ${(stats.size / 1024).toFixed(2)} KB`);
+                console.log(`   Last modified: ${stats.mtime.toISOString()}`);
+            }
+            return exists;
+        },
         success: '✅ Native binary found',
         failure: '❌ Native binary not found - run: npm run setup'
     },

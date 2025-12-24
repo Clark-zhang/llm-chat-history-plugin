@@ -18,19 +18,30 @@ export class HistorySaver {
      * 保存对话到文件
      */
     async save(composer: ComposerData, markdown: string): Promise<string> {
+        console.log('[DEBUG] HistorySaver.save() called');
+        console.log('[DEBUG] History directory:', this.historyDir);
+        
         // 确保目录存在
         await fs.mkdir(this.historyDir, { recursive: true });
+        console.log('[DEBUG] Directory created/verified');
         
         // 生成文件名
         const filename = this.generateFilename(composer);
         const filepath = path.join(this.historyDir, filename);
         
+        console.log('[DEBUG] Target filename:', filename);
+        console.log('[DEBUG] Target filepath:', filepath);
+        
         // 检查是否需要更新
         const shouldSave = await this.shouldSave(filepath, markdown);
         
+        console.log('[DEBUG] Should save:', shouldSave);
+        
         if (shouldSave) {
             await fs.writeFile(filepath, markdown, 'utf-8');
-            console.log(`Saved: ${filename}`);
+            console.log(`[DEBUG] File saved successfully: ${filename}`);
+        } else {
+            console.log('[DEBUG] File content unchanged, skipping save');
         }
         
         return filepath;

@@ -29,10 +29,13 @@ try {
     process.chdir(sqliteDir);
     
     // Try multiple Electron versions (Cursor/VSCode might use different versions)
+    // Electron 37.x is common in recent Cursor versions (as of Dec 2024)
     const versionsToTry = [
-        '37.0.0',        // Cursor common version (NODE_MODULE_VERSION 136)
-        '38.0.0',        // Electron 38 (NODE_MODULE_VERSION 136)
+        '37.0.0',        // Electron 37 (NODE_MODULE_VERSION 127, Node.js 22.x) - Current Cursor stable
+        '38.0.0',        // Electron 38 (NODE_MODULE_VERSION 127, Node.js 22.x)
         electronVersion, // From package.json (might be different)
+        '39.0.0',        // Electron 39 (NODE_MODULE_VERSION 136, Node.js 23.x)
+        '31.0.0',        // Electron 31 (NODE_MODULE_VERSION 136, Node.js 20.x)
         '36.0.0',        // Electron 36 (NODE_MODULE_VERSION 135)
         '33.0.0',        // Electron 33 (NODE_MODULE_VERSION 130)
     ];

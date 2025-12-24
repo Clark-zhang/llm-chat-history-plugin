@@ -2,47 +2,43 @@
 
 A VS Code extension that automatically saves your LLM chat history to Markdown files. Perfect for tracking AI conversations, building knowledge bases, and maintaining conversation archives.
 
-> ⚠️ **IMPORTANT COMPATIBILITY NOTICE**
-> 
-> **Currently Tested Environment:**
-> - ✅ **Platform**: Windows 10/11
-> - ✅ **Application**: Cursor IDE (specific version tested)
-> - ❌ **NOT tested on**: macOS, Linux, standard VS Code, other Cursor versions
-> 
-> **This is a beta version.** The extension is specifically designed for Cursor IDE and may not work with:
-> - Standard VS Code
-> - Other AI coding assistants (Cline, Continue, etc.)
-> - macOS or Linux systems (untested)
-> 
-> Please verify compatibility before installing. We are actively working on broader support.
+**Now supports both Cursor IDE and Cline extension!**
+
+## Compatibility
+
+### ✅ Supported Platforms
+
+| Platform | Cursor IDE | Cline Extension |
+|----------|------------|-----------------|
+| Windows  | ✅ Tested  | ✅ Supported    |
+| macOS    | ✅ Supported | ✅ Supported  |
+| Linux    | ✅ Supported | ✅ Supported  |
+
+### Supported Chat Sources
+
+- **Cursor IDE**: Reads from Cursor's SQLite database (`state.vscdb`)
+- **Cline Extension**: Reads from Cline's JSON task files (`saoudrizwan.claude-dev`)
+
+The extension automatically detects which sources are available and monitors them simultaneously!
 
 ## Features
 
-- ✅ **Automatic Monitoring**: Watches Cursor's database for changes
-- ✅ **Complete History**: Captures user messages, AI responses, and thinking processes
+- ✅ **Automatic Monitoring**: Watches both Cursor and Cline for changes
+- ✅ **Complete History**: Captures user messages, AI responses, thinking processes, and tool calls
 - ✅ **Markdown Format**: Saves conversations in readable, version-control-friendly Markdown
 - ✅ **Timestamped Files**: Organizes files by date and conversation title
 - ✅ **Git Friendly**: Perfect for tracking AI conversations over time
 - ✅ **Multi-language**: UI and exported Markdown support English and Chinese
+- ✅ **Workspace Filtering**: Only saves chats related to the current workspace
 
 ## Installation
 
-### ⚠️ Before Installing
-
-**Please read the compatibility notice at the top of this page!**
-
-This extension is currently in **beta** and only tested on:
-- ✅ Windows 10/11 + Cursor IDE
-
-If you're using a different setup, it may not work correctly.
-
 ### From VS Code Marketplace
 
-1. **Verify** you're using Cursor IDE on Windows
-2. Open Cursor
-3. Go to Extensions (Ctrl+Shift+X)
-4. Search for "LLM Chat History"
-5. Click Install
+1. Open Cursor IDE or VS Code (with Cline installed)
+2. Go to Extensions (Ctrl+Shift+X)
+3. Search for "LLM Chat History"
+4. Click Install
 
 The extension will automatically configure itself upon installation.
 
@@ -205,6 +201,34 @@ The extension reads from Cursor's SQLite database:
 - The extension requires a workspace to be open
 - Database must be accessible (not locked by another process)
 - **Windows**: Native module installation is handled automatically
+
+### NODE_MODULE_VERSION Errors
+
+If you encounter errors like:
+
+```
+Error: The module 'better_sqlite3.node' was compiled against a different Node.js version
+using NODE_MODULE_VERSION 127. This version requires NODE_MODULE_VERSION 136.
+```
+
+**Quick Fix**:
+
+```bash
+npm run setup
+npm run verify
+```
+
+Then restart Cursor/VS Code completely.
+
+**Why does this happen?**
+- VS Code/Cursor runs on Electron (which includes its own Node.js version)
+- Native modules must be compiled for the specific Electron version
+- Your system Node.js version is different from Electron's version
+
+**For detailed explanation and solutions**:
+- 📖 See `开发者完全指南.md` - Complete developer guide
+- 📖 See `QUICK_FIX.md` - Quick reference
+- 🔧 Run `npm run fix` for interactive troubleshooting
 
 ## Roadmap
 

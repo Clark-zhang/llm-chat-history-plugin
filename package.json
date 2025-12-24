@@ -1,8 +1,8 @@
 {
   "name": "llm-chat-history",
-  "displayName": "LLM Chat History (Cursor - Beta)",
-  "description": "⚠️ Beta: For Cursor IDE on Windows only. Save LLM chat history to markdown files.",
-  "version": "0.1.2",
+  "displayName": "LLM Chat History (Cursor & Cline)",
+  "description": "Save LLM chat history to markdown files. Supports Cursor IDE and Cline extension.",
+  "version": "0.2.0",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
@@ -23,12 +23,12 @@
   "keywords": [
     "cursor",
     "cursor-ide",
+    "cline",
+    "claude-dev",
     "chat",
     "history",
     "ai",
     "markdown",
-    "beta",
-    "windows",
     "export",
     "backup"
   ],
@@ -84,6 +84,7 @@
     "postinstall": "node setup-sqlite.js",
     "setup": "node setup-sqlite.js",
     "verify": "node verify-setup.js",
+    "fix": "node fix-native-module.js",
     "package": "npm run setup && npx vsce package"
   },
   "dependencies": {
