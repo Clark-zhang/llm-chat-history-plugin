@@ -2,7 +2,7 @@
   "name": "llm-chat-history",
   "displayName": "AI Chat History Saver - Auto-export conversations from Cursor, Cline, Kilo & more to Markdown",
   "description": "🚀 Automatically save AI chat history to beautiful Markdown files! Support Cursor, Cline, Kilo, Blackbox AI. Perfect for knowledge management, team collaboration, and conversation tracking.",
-  "version": "0.2.0",
+  "version": "0.2.7",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
@@ -109,7 +109,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run setup && npm run compile && npm run obfuscate",
+    "vscode:prepublish": "npm run setup && npm run rebuild-native && npm run compile && npm run obfuscate",
     "clean": "rimraf dist",
     "prebuild": "npm run check-env",
     "check-env": "node -e \"console.log('Node.js version:', process.version); console.log('Available memory:', Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB')\"",
@@ -122,13 +122,16 @@
     "pretest": "npm run compile",
     "postinstall": "node setup-sqlite.js",
     "setup": "node setup-sqlite.js",
+    "download-all-binaries": "node scripts/download-all-binaries.js",
+    "rebuild-native": "npm run download-all-binaries && npx electron-rebuild -f -w better-sqlite3",
     "verify": "node verify-setup.js",
     "fix": "node fix-native-module.js",
     "package": "npm run build && npx vsce package"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",
-    "chokidar": "^3.6.0"
+    "chokidar": "^3.6.0",
+    "prebuild-install": "^7.1.1"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.2",

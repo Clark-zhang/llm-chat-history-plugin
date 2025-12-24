@@ -93,6 +93,20 @@ export async function openDatabase(dbPath: string, maxRetries = 3): Promise<Curs
         try {
             return new CursorDatabaseReader(dbPath);
         } catch (error) {
+            // 检查是否是 SQLite3 兼容性问题
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('NODE_MODULE_VERSION') ||
+                errorMessage.includes('better_sqlite3.node') ||
+                errorMessage.includes('compiled against a different Node.js version')) {
+
+                // 如果是第一次遇到这个问题，尝试重新加载 SQLite3
+                if (i === 0) {
+                    console.log('Detected SQLite3 compatibility issue, attempting to reload...');
+                    // 这里我们不直接处理，让调用方处理
+                    throw new Error('SQLITE_COMPATIBILITY_ERROR: ' + errorMessage);
+                }
+            }
+
             if (i < maxRetries - 1) {
                 // 等待 500ms 后重试
                 await sleep(500);

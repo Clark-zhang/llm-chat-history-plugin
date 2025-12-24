@@ -11,6 +11,7 @@ import { MarkdownGenerator } from './cursor-markdown-generator';
 import { HistorySaver } from './history-saver';
 import { WorkspaceFilter } from './cursor-workspace-filter';
 import { createTranslator, LocaleSetting, Translator } from './i18n';
+import { SqliteLoader } from './sqlite-loader';
 
 export class DatabaseWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -20,12 +21,14 @@ export class DatabaseWatcher {
     private workspaceRoot: string;
     private workspaceFilter: WorkspaceFilter;
     private t: Translator;
+    private extensionPath: string;
 
-    constructor(dbPath: string, workspaceRoot: string, localeSetting?: LocaleSetting) {
+    constructor(dbPath: string, workspaceRoot: string, localeSetting?: LocaleSetting, extensionPath?: string) {
         this.dbPath = dbPath;
         this.workspaceRoot = workspaceRoot;
         this.workspaceFilter = new WorkspaceFilter(workspaceRoot);
         this.t = createTranslator(localeSetting);
+        this.extensionPath = extensionPath || '';
     }
 
     /**
@@ -101,7 +104,35 @@ export class DatabaseWatcher {
      * 执行同步
      */
     private async performSync(): Promise<void> {
-        const reader = new CursorDatabaseReader(this.dbPath);
+        let reader: CursorDatabaseReader;
+
+        try {
+            // 首先尝试创建数据库读取器
+            reader = new CursorDatabaseReader(this.dbPath);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+
+            // 检查是否是 SQLite3 兼容性问题
+            if (errorMessage.includes('NODE_MODULE_VERSION') ||
+                errorMessage.includes('SQLITE_COMPATIBILITY_ERROR') ||
+                errorMessage.includes('compiled against a different Node.js version')) {
+
+                console.log('Detected SQLite3 compatibility issue, attempting to fix...');
+
+                // 尝试重新加载 SQLite3
+                const sqliteLoader = new SqliteLoader(this.extensionPath);
+                const sqliteReady = await sqliteLoader.ensureLoaded();
+
+                if (!sqliteReady) {
+                    throw new Error('Failed to load compatible SQLite3 binary. Please check the extension logs for more details.');
+                }
+
+                // 重新尝试创建数据库读取器
+                reader = new CursorDatabaseReader(this.dbPath);
+            } else {
+                throw error;
+            }
+        }
 
         try {
             // 获取所有 composer

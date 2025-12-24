@@ -73,7 +73,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const cursorDbPath = getCursorDatabasePath();
     if (fs.existsSync(cursorDbPath)) {
         console.log('Cursor database found, starting Cursor watcher');
-        const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting);
+        const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
         cursorWatcher.start();
         watchers.push(cursorWatcher);
     } else {
