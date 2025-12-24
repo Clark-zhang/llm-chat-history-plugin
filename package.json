@@ -1,7 +1,7 @@
 {
   "name": "llm-chat-history",
-  "displayName": "LLM Chat History (Cursor & Cline)",
-  "description": "Save LLM chat history to markdown files. Supports Cursor IDE and Cline extension.",
+  "displayName": "LLM Chat History (Multi-Platform)",
+  "description": "Save LLM chat history to markdown files. Supports Cursor IDE, Cline, GitHub Copilot Chat, Blackbox AI, CodeGeeX, and Kilo.",
   "version": "0.2.0",
   "publisher": "ClarkZhang",
   "author": {
@@ -25,12 +25,20 @@
     "cursor-ide",
     "cline",
     "claude-dev",
+    "codex",
+    "github-copilot-chat",
+    "blackbox-ai",
+    "codegeex",
+    "kilo",
     "chat",
     "history",
     "ai",
+    "llm",
     "markdown",
     "export",
-    "backup"
+    "backup",
+    "conversation",
+    "logging"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [

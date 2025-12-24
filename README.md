@@ -18,12 +18,16 @@ A VS Code extension that automatically saves your LLM chat history to Markdown f
 
 - **Cursor IDE**: Reads from Cursor's SQLite database (`state.vscdb`)
 - **Cline Extension**: Reads from Cline's JSON task files (`saoudrizwan.claude-dev`)
+- **GitHub Copilot Chat (Codex)**: Reads from GitHub Copilot Chat conversations (`GitHub.copilot-chat`)
+- **Blackbox AI**: Reads from Blackbox AI conversations (`Blackboxapp.blackbox`)
+- **CodeGeeX**: Reads from CodeGeeX conversations (`codegeex.codegeex`)
+- **Kilo**: Reads from Kilo conversations (`kilo.kilo`)
 
 The extension automatically detects which sources are available and monitors them simultaneously!
 
 ## Features
 
-- ✅ **Automatic Monitoring**: Watches both Cursor and Cline for changes
+- ✅ **Automatic Monitoring**: Watches Cursor, Cline, and other AI plugins for changes
 - ✅ **Complete History**: Captures user messages, AI responses, thinking processes, and tool calls
 - ✅ **Markdown Format**: Saves conversations in readable, version-control-friendly Markdown
 - ✅ **Timestamped Files**: Organizes files by date and conversation title
@@ -188,13 +192,39 @@ Example: `2025-12-23_10-30Z-implementing-chat-history.md`
 - Active Cursor installation with chat history
 - Workspace folder must be open
 
-## Database Location
+## Storage Locations
 
-The extension reads from Cursor's SQLite database:
+The extension reads from various AI plugin storage locations:
 
+### Cursor IDE
 - **Windows**: `%APPDATA%\Roaming\Cursor\User\globalStorage\state.vscdb`
 - **macOS**: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
 - **Linux**: `~/.config/Cursor/User/globalStorage/state.vscdb`
+
+### Cline Extension
+- **Windows**: `%APPDATA%\Roaming\Code\User\globalStorage\saoudrizwan.claude-dev`
+- **macOS**: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev`
+- **Linux**: `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev`
+
+### GitHub Copilot Chat (Codex)
+- **Windows**: `%APPDATA%\Roaming\Code\User\globalStorage\GitHub.copilot-chat`
+- **macOS**: `~/Library/Application Support/Code/User/globalStorage/GitHub.copilot-chat`
+- **Linux**: `~/.config/Code/User/globalStorage/GitHub.copilot-chat`
+
+### Blackbox AI
+- **Windows**: `%APPDATA%\Roaming\Code\User\globalStorage\Blackboxapp.blackbox`
+- **macOS**: `~/Library/Application Support/Code/User/globalStorage/Blackboxapp.blackbox`
+- **Linux**: `~/.config/Code/User/globalStorage/Blackboxapp.blackbox`
+
+### CodeGeeX
+- **Windows**: `%APPDATA%\Roaming\Code\User\globalStorage\codegeex.codegeex`
+- **macOS**: `~/Library/Application Support/Code/User/globalStorage/codegeex.codegeex`
+- **Linux**: `~/.config/Code/User/globalStorage/codegeex.codegeex`
+
+### Kilo
+- **Windows**: `%APPDATA%\Roaming\Code\User\globalStorage\kilo.kilo`
+- **macOS**: `~/Library/Application Support/Code/User/globalStorage/kilo.kilo`
+- **Linux**: `~/.config/Code/User/globalStorage/kilo.kilo`
 
 ## Known Issues
 

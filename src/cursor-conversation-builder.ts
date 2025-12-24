@@ -19,19 +19,19 @@ export class ConversationBuilder {
     ): Message[] {
         const messages: Message[] = [];
         const bubbleMap = new Map<string, Bubble>();
-        
+
         // 创建 bubble 映射
         for (const bubble of bubbles) {
             bubbleMap.set(bubble.bubbleId, bubble);
         }
-        
+
         // 按顺序处理
         const headers = composer.fullConversationHeadersOnly || [];
-        
+
         for (const header of headers) {
             const bubble = bubbleMap.get(header.bubbleId);
             if (!bubble) continue;
-            
+
             if (header.type === 1 && bubble.type === 1) {
                 // 用户消息
                 messages.push({
@@ -60,10 +60,10 @@ export class ConversationBuilder {
                 });
             }
         }
-        
+
         return messages;
     }
-    
+
     /**
      * 获取模式名称
      */
@@ -86,5 +86,3 @@ export class ConversationBuilder {
         return formatToolUse(bubble.toolFormerData, this.t);
     }
 }
-
-

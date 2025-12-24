@@ -112,17 +112,19 @@ export type Bubble = UserBubble | AIResponseBubble;
  */
 export interface Message {
     id: string;
-    type: 'user' | 'assistant';
+    type: 'user' | 'assistant' | 'system';
     text: string;
     thinking?: string;
     timestamp: string;
     modelName?: string;
     mode?: string;
+    context?: any; // 上下文信息，如文件路径、代码选择等
     toolResults?: Array<{
         name: string;
         result: any;
     }>;
     toolUses?: ToolUseBlock[];
+    images?: string[]; // 图片附件
 }
 
 /**

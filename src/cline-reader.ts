@@ -27,72 +27,41 @@ export class ClineReader {
         // 读取任务历史索引
         const historyPath = path.join(this.storageDir, 'state', 'taskHistory.json');
         
-        console.log('[DEBUG] ClineReader.getAllTasks()');
-        console.log('[DEBUG] Looking for taskHistory at:', historyPath);
-        
         if (!fs.existsSync(historyPath)) {
-            console.warn('[DEBUG] Task history file not found:', historyPath);
-            
-            // 尝试列出 state 目录的内容
-            const stateDir = path.join(this.storageDir, 'state');
-            if (fs.existsSync(stateDir)) {
-                const files = fs.readdirSync(stateDir);
-                console.log('[DEBUG] Files in state directory:', files);
-            } else {
-                console.warn('[DEBUG] State directory does not exist:', stateDir);
-            }
-            
+            console.warn('[Cline] Task history file not found:', historyPath);
             return [];
         }
-        
-        console.log('[DEBUG] Task history file found');
-        
+
         let taskItems: ClineTaskHistory['tasks'];
         try {
             const content = fs.readFileSync(historyPath, 'utf-8');
-            console.log('[DEBUG] Task history content length:', content.length);
-            
             const parsed = JSON.parse(content);
-            
-            // 支持两种格式：
-            // 1. 直接是数组: [{id, task, ...}, ...]
-            // 2. 包装在对象中: {tasks: [{id, task, ...}, ...]}
+
             if (Array.isArray(parsed)) {
-                console.log('[DEBUG] Task history is a direct array');
                 taskItems = parsed;
             } else if (parsed.tasks && Array.isArray(parsed.tasks)) {
-                console.log('[DEBUG] Task history has tasks property');
                 taskItems = parsed.tasks;
             } else {
-                console.warn('[DEBUG] Unexpected task history format:', typeof parsed);
+                console.warn('[Cline] Unexpected task history format');
                 return [];
             }
-            
-            console.log('[DEBUG] Task history parsed, tasks count:', taskItems.length);
         } catch (error) {
-            console.error('[DEBUG] Failed to parse task history:', error);
+            console.error('[Cline] Failed to parse task history:', error);
             return [];
         }
-        
+
         if (!taskItems || taskItems.length === 0) {
-            console.log('[DEBUG] No tasks in task history');
             return [];
         }
-        
+
         const tasks: ClineTask[] = [];
-        
+
         for (const taskItem of taskItems) {
-            console.log('[DEBUG] Reading task:', taskItem.id);
             const task = this.getTask(taskItem.id);
             if (task) {
                 tasks.push(task);
-                console.log('[DEBUG] Task loaded successfully:', taskItem.id);
-            } else {
-                console.warn('[DEBUG] Failed to load task:', taskItem.id);
             }
         }
-        
-        console.log(`[DEBUG] Total tasks loaded: ${tasks.length}`);
         
         return tasks;
     }
@@ -313,7 +282,6 @@ export function getClineStoragePath(): string {
         );
     }
     
-    console.log('  - storagePath:', storagePath);
     
     return storagePath;
 }

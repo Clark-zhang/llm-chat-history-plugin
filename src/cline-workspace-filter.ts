@@ -17,48 +17,28 @@ export class ClineWorkspaceFilter {
      * 判断任务是否属于当前工作区
      */
     belongsToCurrentWorkspace(task: ClineTask): boolean {
-        console.log('[DEBUG] ClineWorkspaceFilter.belongsToCurrentWorkspace()');
-        console.log('[DEBUG] Task ID:', task.id);
-        console.log('[DEBUG] Task workspaceRoot:', task.workspaceRoot);
-        console.log('[DEBUG] Current workspaceRoot:', this.workspaceRoot);
-        
         // 如果任务有明确的工作区路径
         if (task.workspaceRoot) {
-            const belongs = this.isSameOrSubPath(task.workspaceRoot, this.workspaceRoot);
-            console.log('[DEBUG] Task has explicit workspaceRoot, belongs:', belongs);
-            return belongs;
+            return this.isSameOrSubPath(task.workspaceRoot, this.workspaceRoot);
         }
-        
-        console.log('[DEBUG] Task has no explicit workspaceRoot, checking UI messages');
-        
+
         // 尝试从 UI messages 中查找路径线索
         const uiMessages = task.uiMessages.messages || [];
-        console.log('[DEBUG] UI messages count:', uiMessages.length);
-        
+
         for (const msg of uiMessages) {
             // 检查文件路径
-            if (msg.path) {
-                const normalizedPath = this.normalizePath(msg.path);
-                console.log('[DEBUG] Checking message path:', msg.path, '-> normalized:', normalizedPath);
-                if (this.isSameOrSubPath(normalizedPath, this.workspaceRoot)) {
-                    console.log('[DEBUG] Found matching path in UI messages');
-                    return true;
-                }
+            if (msg.path && this.isSameOrSubPath(msg.path, this.workspaceRoot)) {
+                return true;
             }
-            
+
             // 检查命令执行路径
-            if (msg.command && typeof msg.command === 'string') {
-                // 命令可能包含路径信息
-                if (msg.command.includes(this.workspaceRoot)) {
-                    console.log('[DEBUG] Found matching path in command');
-                    return true;
-                }
+            if (msg.command && typeof msg.command === 'string' && msg.command.includes(this.workspaceRoot)) {
+                return true;
             }
         }
-        
+
         // 如果无法确定，采用包容策略（返回 true）
         // 这样可以确保任务不会被意外过滤掉
-        console.log('[DEBUG] No explicit workspace match found, using inclusive policy (returning true)');
         return true;
     }
     

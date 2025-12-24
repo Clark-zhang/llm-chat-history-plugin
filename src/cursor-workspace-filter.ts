@@ -1,5 +1,5 @@
 import { ComposerData, Bubble } from './types';
-import { CursorDatabaseReader } from './database-reader';
+import { CursorDatabaseReader } from './cursor-database-reader';
 
 /**
  * WorkspaceFilter filters composers so we only export chats
@@ -96,7 +96,3 @@ export class WorkspaceFilter {
         return this.normalizePath(path1) === this.normalizePath(path2);
     }
 }
-
-
-
-

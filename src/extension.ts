@@ -5,9 +5,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { DatabaseWatcher } from './database-watcher';
+import { DatabaseWatcher } from './cursor-database-watcher';
 import { ClineWatcher } from './cline-watcher';
 import { getClineStoragePath } from './cline-reader';
+import { CodexWatcher } from './codex-watcher';
+import { getCodexStoragePath } from './codex-reader';
+import { BlackboxWatcher } from './blackboxai-watcher';
+import { getBlackboxStoragePath } from './blackboxai-reader';
+import { CodeGeeXWatcher } from './codegeex-watcher';
+import { getCodeGeeXStoragePath } from './codegeex-reader';
+import { KiloWatcher } from './kilo-watcher';
+import { getKiloStoragePath } from './kilo-reader';
 import { createTranslator } from './i18n';
 import { SqliteLoader } from './sqlite-loader';
 
@@ -74,30 +82,64 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // 尝试启动 Cline 监听
     const clineStoragePath = getClineStoragePath();
-    console.log('[DEBUG] Checking Cline storage path:', clineStoragePath);
-    console.log('[DEBUG] Path exists:', fs.existsSync(clineStoragePath));
-    
     if (fs.existsSync(clineStoragePath)) {
-        console.log('Cline storage found, starting Cline watcher');
-        
-        // 检查子目录
-        const tasksDir = path.join(clineStoragePath, 'tasks');
-        const stateDir = path.join(clineStoragePath, 'state');
-        console.log('[DEBUG] Tasks dir exists:', fs.existsSync(tasksDir));
-        console.log('[DEBUG] State dir exists:', fs.existsSync(stateDir));
-        
+        console.log('[Cline] Storage found, starting watcher');
         const clineWatcher = new ClineWatcher(clineStoragePath, workspaceRoot, localeSetting);
         clineWatcher.start();
         watchers.push(clineWatcher);
     } else {
-        console.log('Cline storage not found:', clineStoragePath);
+        console.log('[Cline] Storage not found');
     }
-    
+
+    // 尝试启动 Codex (GitHub Copilot Chat) 监听
+    const codexStoragePath = getCodexStoragePath();
+    if (fs.existsSync(codexStoragePath)) {
+        console.log('Codex storage found, starting Codex watcher');
+        const codexWatcher = new CodexWatcher(codexStoragePath, workspaceRoot, localeSetting);
+        codexWatcher.start();
+        watchers.push(codexWatcher);
+    } else {
+        console.log('Codex storage not found:', codexStoragePath);
+    }
+
+    // 尝试启动 Blackbox AI 监听
+    const blackboxStoragePath = getBlackboxStoragePath();
+    if (fs.existsSync(blackboxStoragePath)) {
+        console.log('Blackbox AI storage found, starting Blackbox AI watcher');
+        const blackboxWatcher = new BlackboxWatcher(blackboxStoragePath, workspaceRoot, localeSetting);
+        blackboxWatcher.start();
+        watchers.push(blackboxWatcher);
+    } else {
+        console.log('Blackbox AI storage not found:', blackboxStoragePath);
+    }
+
+    // 尝试启动 CodeGeeX 监听
+    const codegeexStoragePath = getCodeGeeXStoragePath();
+    if (fs.existsSync(codegeexStoragePath)) {
+        console.log('CodeGeeX storage found, starting CodeGeeX watcher');
+        const codegeexWatcher = new CodeGeeXWatcher(codegeexStoragePath, workspaceRoot, localeSetting);
+        codegeexWatcher.start();
+        watchers.push(codegeexWatcher);
+    } else {
+        console.log('CodeGeeX storage not found:', codegeexStoragePath);
+    }
+
+    // 尝试启动 Kilo 监听
+    const kiloStoragePath = getKiloStoragePath();
+    if (fs.existsSync(kiloStoragePath)) {
+        console.log('Kilo storage found, starting Kilo watcher');
+        const kiloWatcher = new KiloWatcher(kiloStoragePath, workspaceRoot, localeSetting);
+        kiloWatcher.start();
+        watchers.push(kiloWatcher);
+    } else {
+        console.log('Kilo storage not found:', kiloStoragePath);
+    }
+
     // 如果没有找到任何聊天历史
     if (watchers.length === 0) {
-        console.warn('No chat history sources found (Cursor or Cline)');
+        console.warn('No chat history sources found (Cursor, Cline, Codex, Blackbox AI, CodeGeeX, or Kilo)');
         vscode.window.showWarningMessage(
-            t('warning.dbNotFound')
+            'LLM Chat History: No supported AI plugins found. Please install and use Cursor, Cline, GitHub Copilot Chat, Blackbox AI, CodeGeeX, or Kilo.'
         );
         return;
     }
