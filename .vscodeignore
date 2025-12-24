@@ -25,11 +25,14 @@ node_modules/**/.github/**
 verify-setup.js
 obfuscate.js
 fix-native-module.js
+scripts/**
+search-codegeex-data.js
 
 # Project planning docs
 Cursor聊天记录导出实施方案.md
 COMBINED_GUIDE.md
 *.spec.md
+.llm-chat-history/**
 
 # Development directories
 .specstory/**

@@ -134,7 +134,7 @@ export async function activate(context: vscode.ExtensionContext) {
     } else {
         console.log('Kilo storage not found:', kiloStoragePath);
     }
-
+    
     // 如果没有找到任何聊天历史
     if (watchers.length === 0) {
         console.warn('No chat history sources found (Cursor, Cline, Codex, Blackbox AI, CodeGeeX, or Kilo)');

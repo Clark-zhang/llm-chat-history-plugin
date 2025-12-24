@@ -1,7 +1,7 @@
 {
   "name": "llm-chat-history",
-  "displayName": "LLM Chat History (Multi-Platform)",
-  "description": "Save LLM chat history to markdown files. Supports Cursor IDE, Cline, GitHub Copilot Chat, Blackbox AI, CodeGeeX, and Kilo.",
+  "displayName": "AI Chat History Saver - Auto-export conversations from Cursor, Cline, Kilo & more to Markdown",
+  "description": "🚀 Automatically save AI chat history to beautiful Markdown files! Support Cursor, Cline, Kilo, Blackbox AI. Perfect for knowledge management, team collaboration, and conversation tracking.",
   "version": "0.2.0",
   "publisher": "ClarkZhang",
   "author": {
@@ -18,27 +18,53 @@
     "vscode": "^1.93.0"
   },
   "categories": [
+    "Notebooks",
     "Other"
   ],
   "keywords": [
     "cursor",
     "cursor-ide",
     "cline",
+    "claude",
     "claude-dev",
     "codex",
+    "github-copilot",
     "github-copilot-chat",
     "blackbox-ai",
-    "codegeex",
     "kilo",
+    "codegeex",
+    "chatgpt",
+    "gpt",
+    "openai",
+    "anthropic",
+    "ai-assistant",
+    "coding-assistant",
     "chat",
     "history",
-    "ai",
-    "llm",
-    "markdown",
+    "conversation",
     "export",
     "backup",
-    "conversation",
-    "logging"
+    "markdown",
+    "documentation",
+    "knowledge-base",
+    "team-collaboration",
+    "workspace",
+    "productivity",
+    "logging",
+    "archive",
+    "record",
+    "save-chat",
+    "chat-logger",
+    "ai-memory",
+    "conversation-tracker",
+    "llm-history",
+    "ai-chat-export",
+    "markdown-export",
+    "git-friendly",
+    "version-control",
+    "obsidian",
+    "notion",
+    "knowledge-management"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -84,16 +110,21 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run setup && npm run compile && npm run obfuscate",
+    "clean": "rimraf dist",
+    "prebuild": "npm run check-env",
+    "check-env": "node -e \"console.log('Node.js version:', process.version); console.log('Available memory:', Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB')\"",
     "compile": "tsc -p ./",
-    "obfuscate": "node obfuscate.js",
-    "build": "npm run compile && npm run obfuscate",
+    "check-build": "node scripts/check-build.js",
+    "obfuscate": "node --max-old-space-size=4096 obfuscate.js",
+    "build": "npm run clean && npm run compile && npm run check-build && npm run obfuscate",
+    "build:safe": "npm run clean && npm run compile && npm run obfuscate",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "postinstall": "node setup-sqlite.js",
     "setup": "node setup-sqlite.js",
     "verify": "node verify-setup.js",
     "fix": "node fix-native-module.js",
-    "package": "npm run setup && npx vsce package"
+    "package": "npm run build && npx vsce package"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",
@@ -106,6 +137,7 @@
     "@types/vscode": "^1.93.0",
     "electron": "^39.2.7",
     "javascript-obfuscator": "^4.1.0",
+    "rimraf": "^5.0.10",
     "typescript": "^5.0.0"
   }
 }
