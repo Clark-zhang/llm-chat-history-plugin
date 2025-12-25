@@ -4,7 +4,7 @@
  */
 
 import { CodexConversation, CodexMessage } from './codex-types';
-import { Translator } from './i18n';
+import { Translator } from '../../i18n';
 
 export class CodexMarkdownGenerator {
     constructor(private t: Translator) {}

@@ -3,8 +3,8 @@
  */
 
 import { CodeGeeXConversation, CodeGeeXMessage } from './codegeex-types';
-import { Message } from './types';
-import { Translator } from './i18n';
+import { Message } from '../../types';
+import { Translator } from '../../i18n';
 
 export class CodeGeeXConversationBuilder {
     constructor(private t: Translator) {}

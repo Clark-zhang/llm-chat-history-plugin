@@ -4,8 +4,8 @@
  */
 
 import { CodexConversation, CodexMessage } from './codex-types';
-import { Message } from './types';
-import { Translator } from './i18n';
+import { Message } from '../../types';
+import { Translator } from '../../i18n';
 
 export class CodexConversationBuilder {
     constructor(private t: Translator) {}

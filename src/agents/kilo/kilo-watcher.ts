@@ -8,9 +8,9 @@ import * as path from 'path';
 import { KiloReader } from './kilo-reader';
 import { KiloConversationBuilder } from './kilo-conversation-builder';
 import { KiloMarkdownGenerator } from './kilo-markdown-generator';
-import { HistorySaver } from './history-saver';
+import { HistorySaver } from '../../history-saver';
 import { KiloWorkspaceFilter } from './kilo-workspace-filter';
-import { createTranslator, LocaleSetting, Translator } from './i18n';
+import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 
 export class KiloWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -116,6 +116,7 @@ export class KiloWatcher {
                 return;
             }
 
+            let savedCount = 0;
             for (const conversation of conversations) {
                 console.log(`[Kilo] 🔍 Checking conversation: ${conversation.id} - ${conversation.title}`);
 
@@ -154,6 +155,17 @@ export class KiloWatcher {
 
                 const savedPath = await saver.save(composerLike as any, markdown);
                 console.log(`[Kilo] Saved conversation ${conversation.id} to: ${savedPath}`);
+                savedCount++;
+            }
+
+            // 更新侧边栏统计信息
+            if (savedCount > 0) {
+                const automationProvider = (global as any).__automationStatusProvider;
+                if (automationProvider) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleString();
+                    automationProvider.updateStats(timeStr, savedCount);
+                }
             }
 
             console.log('[Kilo] Sync completed');

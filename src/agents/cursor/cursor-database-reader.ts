@@ -4,7 +4,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { ComposerData, Bubble, DatabaseRow } from './types';
+import { ComposerData, Bubble, DatabaseRow } from '../../types';
 
 export class CursorDatabaseReader {
     private db: Database.Database;

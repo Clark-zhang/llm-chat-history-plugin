@@ -8,20 +8,34 @@ import * as vscode from 'vscode';
 import { CursorDatabaseReader } from './cursor-database-reader';
 import { ConversationBuilder } from './cursor-conversation-builder';
 import { MarkdownGenerator } from './cursor-markdown-generator';
-import { HistorySaver } from './history-saver';
+import { HistorySaver } from '../../history-saver';
 import { WorkspaceFilter } from './cursor-workspace-filter';
-import { createTranslator, LocaleSetting, Translator } from './i18n';
-import { SqliteLoader } from './sqlite-loader';
+import { createTranslator, LocaleSetting, Translator } from '../../i18n';
+import { SqliteLoader } from '../../sqlite-loader';
+import { CloudSyncManager, SyncSession } from '../../cloud/cloud-sync';
+import { Message } from '../../types';
+
+// 缓存的会话数据，用于云端同步
+interface CachedSession {
+    title: string;
+    session_id: string;
+    messages: Message[];
+}
 
 export class DatabaseWatcher {
     private watcher: chokidar.FSWatcher | null = null;
     private dbPath: string;
-    private lastSync: number = 0;
+    private lastLocalSync: number = 0;
+    private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
+    private cloudSyncTimer: NodeJS.Timeout | null = null;
     private workspaceRoot: string;
     private workspaceFilter: WorkspaceFilter;
     private t: Translator;
     private extensionPath: string;
+    
+    // 缓存会话数据，供云端同步使用
+    private cachedSessions: CachedSession[] = [];
 
     constructor(dbPath: string, workspaceRoot: string, localeSetting?: LocaleSetting, extensionPath?: string) {
         this.dbPath = dbPath;
@@ -35,7 +49,7 @@ export class DatabaseWatcher {
      * 启动监听
      */
     start(): void {
-        // 1. 立即执行一次同步
+        // 1. 立即执行一次本地同步
         this.syncNow();
 
         // 2. 监听数据库文件变化
@@ -48,12 +62,22 @@ export class DatabaseWatcher {
             this.scheduleSync();
         });
 
-        // 3. 定时轮询（兜底，每 30 秒）
+        // 3. 定时轮询本地保存（每 30 秒）
         setInterval(() => {
             this.syncNow();
         }, 30000); // 30 秒
 
-        console.log('Database watcher started');
+        // 4. 定时云端同步（每 60 秒）
+        setInterval(() => {
+            this.cloudSyncNow();
+        }, 60000); // 60 秒
+
+        // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
+        setTimeout(() => {
+            this.cloudSyncNow();
+        }, 5000);
+
+        console.log('Database watcher started (local: 30s, cloud: 60s)');
     }
 
     /**
@@ -66,10 +90,13 @@ export class DatabaseWatcher {
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
+        if (this.cloudSyncTimer) {
+            clearTimeout(this.cloudSyncTimer);
+        }
     }
 
     /**
-     * 调度同步（防抖）
+     * 调度同步（防抖）- 仅本地保存
      */
     private scheduleSync(): void {
         // 防抖：2 秒内只执行一次
@@ -83,27 +110,45 @@ export class DatabaseWatcher {
     }
 
     /**
-     * 立即同步
+     * 立即执行本地同步
      */
     syncNow(): void {
         const now = Date.now();
 
         // 避免过于频繁的同步
-        if (now - this.lastSync < 1000) {
+        if (now - this.lastLocalSync < 1000) {
             return;
         }
 
-        this.lastSync = now;
+        this.lastLocalSync = now;
 
-        this.performSync().catch(error => {
-            console.error('Sync failed:', error);
+        this.performLocalSync().catch(error => {
+            console.error('Local sync failed:', error);
         });
     }
 
     /**
-     * 执行同步
+     * 立即执行云端同步
      */
-    private async performSync(): Promise<void> {
+    cloudSyncNow(): void {
+        const now = Date.now();
+
+        // 避免过于频繁的云端同步
+        if (now - this.lastCloudSync < 5000) {
+            return;
+        }
+
+        this.lastCloudSync = now;
+
+        this.performCloudSync().catch(error => {
+            console.error('Cloud sync failed:', error);
+        });
+    }
+
+    /**
+     * 执行本地同步 - 保存到本地 Markdown 文件
+     */
+    private async performLocalSync(): Promise<void> {
         let reader: CursorDatabaseReader;
 
         try {
@@ -133,6 +178,9 @@ export class DatabaseWatcher {
                 throw error;
             }
         }
+
+        // 收集会话数据用于后续云端同步
+        const sessionsToCache: CachedSession[] = [];
 
         try {
             // 获取所有 composer
@@ -169,15 +217,64 @@ export class DatabaseWatcher {
                 const generator = new MarkdownGenerator(this.t);
                 const markdown = generator.generate(composer, messages);
 
-                // 保存
+                // 保存到本地
                 const config = vscode.workspace.getConfiguration('chatHistory');
                 const outputDir = config.get<string>('outputDirectory', '.llm-chat-history');
 
                 const saver = new HistorySaver(this.workspaceRoot, outputDir);
                 await saver.save(composer, markdown);
+
+                // 缓存会话数据供云端同步使用
+                sessionsToCache.push({
+                    title: composer.name || 'Untitled',
+                    session_id: composer.composerId,
+                    messages: messages,
+                });
+            }
+
+            // 更新缓存
+            this.cachedSessions = sessionsToCache;
+
+            // 更新侧边栏统计信息
+            const automationProvider = (global as any).__automationStatusProvider;
+            if (automationProvider && composers.length > 0) {
+                const now = new Date();
+                const timeStr = now.toLocaleString();
+                automationProvider.updateStats(timeStr, composers.length);
             }
         } finally {
             reader.close();
+        }
+    }
+
+    /**
+     * 执行云端同步 - 将缓存的会话数据同步到云端
+     */
+    private async performCloudSync(): Promise<void> {
+        const cloudSync = (global as any).__cloudSyncManager as CloudSyncManager | undefined;
+        const shouldCloudSync = cloudSync?.isLoggedIn() && cloudSync?.isEnabled() && cloudSync?.isAutoSyncEnabled();
+
+        if (!shouldCloudSync || !cloudSync) {
+            return;
+        }
+
+        if (this.cachedSessions.length === 0) {
+            console.log('[CloudSync] No sessions to sync');
+            return;
+        }
+
+        try {
+            // 转换缓存的会话为云端同步格式
+            const cloudSessions: SyncSession[] = this.cachedSessions.map(session => ({
+                title: session.title,
+                session_id: session.session_id,
+                messages: cloudSync.convertMessages(session.messages),
+            }));
+
+            await cloudSync.syncSessions('cursor', cloudSessions);
+            console.log(`[CloudSync] Synced ${cloudSessions.length} sessions to cloud`);
+        } catch (error) {
+            console.error('[CloudSync] Cloud sync failed:', error);
         }
     }
 }

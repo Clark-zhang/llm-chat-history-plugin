@@ -8,9 +8,9 @@ import * as path from 'path';
 import { CodeGeeXReader } from './codegeex-reader';
 import { CodeGeeXConversationBuilder } from './codegeex-conversation-builder';
 import { CodeGeeXMarkdownGenerator } from './codegeex-markdown-generator';
-import { HistorySaver } from './history-saver';
+import { HistorySaver } from '../../history-saver';
 import { CodeGeeXWorkspaceFilter } from './codegeex-workspace-filter';
-import { createTranslator, LocaleSetting, Translator } from './i18n';
+import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 
 export class CodeGeeXWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -116,6 +116,7 @@ export class CodeGeeXWatcher {
                 return;
             }
 
+            let savedCount = 0;
             for (const conversation of conversations) {
                 console.log(`[CodeGeeX] 🔍 Checking conversation: ${conversation.id} - ${conversation.title}`);
 
@@ -154,6 +155,17 @@ export class CodeGeeXWatcher {
 
                 const savedPath = await saver.save(composerLike as any, markdown);
                 console.log(`[CodeGeeX] Saved conversation ${conversation.id} to: ${savedPath}`);
+                savedCount++;
+            }
+
+            // 更新侧边栏统计信息
+            if (savedCount > 0) {
+                const automationProvider = (global as any).__automationStatusProvider;
+                if (automationProvider) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleString();
+                    automationProvider.updateStats(timeStr, savedCount);
+                }
             }
 
             console.log('[CodeGeeX] Sync completed');

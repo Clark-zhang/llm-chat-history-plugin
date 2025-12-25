@@ -3,8 +3,8 @@
  */
 
 import { KiloConversation, KiloMessage } from './kilo-types';
-import { Message } from './types';
-import { Translator } from './i18n';
+import { Message } from '../../types';
+import { Translator } from '../../i18n';
 
 export class KiloConversationBuilder {
     constructor(private t: Translator) {}

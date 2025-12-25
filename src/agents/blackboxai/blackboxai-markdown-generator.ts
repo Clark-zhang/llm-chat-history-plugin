@@ -1,14 +1,14 @@
 /**
- * Kilo Markdown 生成器
+ * Blackbox AI Markdown 生成器
  */
 
-import { KiloConversation, KiloMessage } from './kilo-types';
-import { Translator } from './i18n';
+import { BlackboxConversation, BlackboxMessage } from './blackboxai-types';
+import { Translator } from '../../i18n';
 
-export class KiloMarkdownGenerator {
+export class BlackboxMarkdownGenerator {
     constructor(private t: Translator) {}
 
-    generate(conversation: KiloConversation, messages: KiloMessage[]): string {
+    generate(conversation: BlackboxConversation, messages: BlackboxMessage[]): string {
         let markdown = '';
 
         // 文件头
@@ -57,17 +57,17 @@ export class KiloMarkdownGenerator {
         return markdown;
     }
 
-    private generateHeader(conversation: KiloConversation): string {
+    private generateHeader(conversation: BlackboxConversation): string {
         return `---
 title: "${conversation.title}"
 created: ${new Date(conversation.createdAt).toISOString()}
 updated: ${new Date(conversation.updatedAt).toISOString()}
-source: "Kilo"
+source: "Blackbox AI"
 model: "${conversation.model || 'Unknown'}"
 ---`;
     }
 
-    private generateMetadata(conversation: KiloConversation, messages: KiloMessage[]): string {
+    private generateMetadata(conversation: BlackboxConversation, messages: BlackboxMessage[]): string {
         const userMessages = messages.filter(m => m.role === 'user').length;
         const assistantMessages = messages.filter(m => m.role === 'assistant').length;
         const createdDate = new Date(conversation.createdAt).toLocaleString();
@@ -83,7 +83,7 @@ model: "${conversation.model || 'Unknown'}"
         return metadata;
     }
 
-    private generateSpeakerTitle(message: KiloMessage, index: number): string {
+    private generateSpeakerTitle(message: BlackboxMessage, index: number): string {
         const role = message.role;
         const icon = role === 'user' ? '💬' : role === 'assistant' ? '🤖' : '⚙️';
         const timestamp = new Date(message.timestamp).toLocaleString();

@@ -131,6 +131,7 @@ The extension automatically detects which sources are available and monitors the
 - **Git Integration** - Perfect for tracking AI conversations alongside code changes
 - **Multi-language Support** - UI and exports available in English and Chinese
 - **Zero Configuration** - Install and start saving immediately
+- **🔍 Full-Text Search** - Instantly search through all your saved conversations
 
 ### 📊 Perfect Integration
 - **Obsidian** - Import as knowledge base notes
@@ -203,6 +204,41 @@ You can manually trigger a save by:
 1. Opening the Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
 2. Running the command: "LLMChatHistory: Save Chat History Now"
 
+### Search Chat History
+
+You can search through all your saved conversations:
+1. Opening the Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+2. Running the command: "LLMChatHistory: Search Chat History"
+3. Enter your search keywords
+4. Select from the matching conversations found
+5. The file will open with the first match highlighted
+
+### ☁️ Cloud Sync (Optional)
+
+**NEW in v0.3.0!** Sync your chat history to the cloud:
+
+#### Quick Start
+1. Enable cloud sync: `chatHistory.cloudSync.enabled = true`
+2. Click the cloud icon in status bar to login/register
+3. Your chat history will automatically sync to the cloud!
+
+#### Commands
+- `LLMChatHistory: Login to Cloud` - Login or register an account
+- `LLMChatHistory: Logout from Cloud` - Logout from cloud
+- `LLMChatHistory: Sync to Cloud Now` - Manually sync now
+
+#### Features
+- 🔐 **Secure**: End-to-end encrypted sync
+- 🔄 **Auto Sync**: Automatically syncs new conversations
+- 📱 **Cross-Device**: Access your history from anywhere
+- 🌍 **Multi-Language**: Full i18n support (EN/ZH)
+
+#### For Developers (Debug Mode)
+If you're developing or testing locally:
+1. Enable debug mode: `chatHistory.cloudSync.debugMode = true`
+2. Set your local server: `chatHistory.cloudSync.debugServerUrl = "http://192.168.56.101:9999"`
+3. The extension will use your custom server instead of the official one
+
 ### Viewing History
 
 The generated Markdown files are optimized for direct viewing:
@@ -231,6 +267,10 @@ But if you want to customize it, here are the available settings:
 | `chatHistory.outputDirectory` | `.llm-chat-history/history` | 📁 Where to save your chat files |
 | `chatHistory.useUTC` | `true` | 🕐 Use UTC timezone for consistent timestamps |
 | `chatHistory.locale` | `auto` | 🌍 Language: `auto`, `en`, or `zh` |
+| `chatHistory.cloudSync.enabled` | `false` | ☁️ Enable cloud sync |
+| `chatHistory.cloudSync.autoSync` | `true` | 🔄 Auto sync to cloud when logged in |
+| `chatHistory.cloudSync.debugMode` | `false` | 🐛 Debug mode (for development only) |
+| `chatHistory.cloudSync.debugServerUrl` | `http://192.168.56.101:9999` | 🔧 Custom server URL (debug mode only) |
 
 ### 💡 Pro Tips
 
@@ -369,13 +409,15 @@ Then restart Cursor/VS Code completely.
 
 ## Roadmap
 
-We are continuously improving this extension. Upcoming features include:
+We are continuously improving this extension.
+
+### ✅ Recently Added
+- 🔍 **Full-Text Search**: Instantly search through all your saved conversations (v0.2.8)
+- ☁️ **Cloud Sync**: Sync your chat history to your own server (v0.3.0)
 
 ### 🚀 Coming Soon
-- ☁️ **Cloud Sync**: Sync your chat history across all devices
 - 👥 **Team Collaboration**: Share and collaborate on conversations
 - 📊 **Advanced Analytics**: Insights and statistics about your AI usage
-- 🔍 **Advanced Search**: Full-text search across all conversations
 - 🏷️ **Tags & Organization**: Better ways to organize your history
 - 📤 **Export Options**: PDF, HTML, and more export formats
 
@@ -388,11 +430,10 @@ We are continuously improving this extension. Upcoming features include:
 - ✅ Auto-save functionality
 
 ### Pro Version (Coming Soon)
-- ☁️ Cloud sync across devices
 - 👥 Team collaboration features
 - 📊 Advanced analytics
 - 🎯 Priority support
-- 🔄 Auto-backup
+- 🔄 Advanced cloud features
 
 Stay tuned for updates!
 
@@ -421,11 +462,15 @@ modification, or use is strictly prohibited.
 - 🔗 **Share with colleagues** who might benefit
 
 ### 🎁 Roadmap
-We're continuously improving! Upcoming features:
-- ☁️ **Cloud Sync** - Access your history anywhere
+We're continuously improving!
+
+**✅ Recently Added:**
+- 🔍 **Full-Text Search** - Find conversations instantly (v0.2.8)
+- ☁️ **Cloud Sync** - Access your history anywhere (v0.3.0)
+
+**🚀 Coming Soon:**
 - 👥 **Team Sharing** - Collaborate on AI conversations
 - 📊 **Analytics** - Insights into your AI usage
-- 🔍 **Advanced Search** - Find conversations instantly
 
 ---
 

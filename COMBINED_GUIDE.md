@@ -698,8 +698,30 @@ npm run build
 # 3. 检查混淆效果
 Get-Content dist\extension.js -Head 30
 
-# 4. 打包测试
+# 4. 打包
+
+## 4.1 打包生产版本
+```bash
+# 完整打包流程（包含编译、混淆）
+npm run package
+
+# 或手动执行
+npm run build
 vsce package --allow-missing-repository
+```
+
+## 4.2 打包测试版本
+```bash
+# 自动打包测试版（debugMode 默认开启）
+npm run package:test
+```
+
+测试版特点：
+- 版本号自动添加 `-test` 后缀（例如 0.3.0-test）
+- `debugMode` 默认为 `true`
+- 自动连接到本地服务器 `http://192.168.56.101:9999`
+- `cloudSync.enabled` 仍需用户手动启用
+- 打包完成后自动恢复原始配置
 
 # 5. 安装测试
 # 在 VS Code 中安装并测试所有功能

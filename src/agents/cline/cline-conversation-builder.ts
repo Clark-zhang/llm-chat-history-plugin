@@ -13,7 +13,7 @@ import {
     ClineToolUseContent,
     ClineToolResultContent
 } from './cline-types';
-import { Translator } from './i18n';
+import { Translator } from '../../i18n';
 
 export class ClineConversationBuilder {
     constructor(private t: Translator) {}
@@ -185,5 +185,8 @@ export class ClineConversationBuilder {
         return message;
     }
 }
+
+
+
 
 

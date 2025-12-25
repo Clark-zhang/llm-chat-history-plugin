@@ -2,7 +2,7 @@
   "name": "llm-chat-history",
   "displayName": "AI Chat History Saver - Auto-export conversations from Cursor, Cline, Kilo & more to Markdown",
   "description": "🚀 Automatically save AI chat history to beautiful Markdown files! Support Cursor, Cline, Kilo, Blackbox AI. Perfect for knowledge management, team collaboration, and conversation tracking.",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
@@ -98,15 +98,105 @@
           ],
           "default": "auto",
           "description": "Locale for extension messages and markdown (auto/en/zh)"
+        },
+        "chatHistory.cloudSync.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable cloud synchronization for chat history.\n\n**Note:** You must login to use cloud sync.\n- Click the status bar item `LLM Chat: $(cloud-offline)` in the bottom right corner to login\n- Or use command: `LLMChatHistory: Login to Cloud`\n- View current login status: `LLMChatHistory: Show Cloud Sync Status`"
+        },
+        "chatHistory.cloudSync.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically sync chat history to cloud when logged in.\n\n**Current login status:** Check the status bar item `LLM Chat` in the bottom right corner."
+        },
+        "chatHistory.cloudSync.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug mode to use custom server URL (for development only)"
+        },
+        "chatHistory.cloudSync.debugServerUrl": {
+          "type": "string",
+          "default": "http://192.168.56.101:9999",
+          "description": "Custom server URL for debug mode (only works when debugMode is enabled)"
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "llm-chat-history",
+          "title": "LLM Chat History",
+          "icon": "resources/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "llm-chat-history": [
+        {
+          "id": "chatHistoryStatus",
+          "name": "Automation"
+        },
+        {
+          "id": "chatHistoryAccount",
+          "name": "Account"
+        }
+      ]
     },
     "commands": [
       {
         "command": "chatHistory.saveNow",
-        "title": "LLMChatHistory: Save Chat History Now"
+        "title": "LLMChatHistory: Save Chat History Now",
+        "icon": "$(save)"
+      },
+      {
+        "command": "chatHistory.search",
+        "title": "LLMChatHistory: Search Chat History",
+        "icon": "$(search)"
+      },
+      {
+        "command": "chatHistory.cloudLogin",
+        "title": "LLMChatHistory: Login to Cloud",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "chatHistory.cloudLogout",
+        "title": "LLMChatHistory: Logout from Cloud",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "chatHistory.cloudSync",
+        "title": "LLMChatHistory: Sync to Cloud Now",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "chatHistory.showCloudStatus",
+        "title": "LLMChatHistory: Show Cloud Sync Status"
+      },
+      {
+        "command": "chatHistory.refreshStatus",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "chatHistory.openSettings",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "chatHistory.refreshStatus",
+          "when": "view == chatHistoryStatus",
+          "group": "navigation"
+        },
+        {
+          "command": "chatHistory.openSettings",
+          "when": "view == chatHistoryStatus",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run setup && npm run rebuild-native && npm run compile && npm run obfuscate",
@@ -126,7 +216,8 @@
     "rebuild-native": "npm run download-all-binaries && npx electron-rebuild -f -w better-sqlite3",
     "verify": "node verify-setup.js",
     "fix": "node fix-native-module.js",
-    "package": "npm run build && npx vsce package"
+    "package": "npm run build && npx vsce package",
+    "package:test": "node scripts/package-test.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",

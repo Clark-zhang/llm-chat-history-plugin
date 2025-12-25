@@ -1,4 +1,4 @@
-import { ComposerData, Bubble } from './types';
+import { ComposerData, Bubble } from '../../types';
 import { CursorDatabaseReader } from './cursor-database-reader';
 
 /**

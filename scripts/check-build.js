@@ -70,8 +70,9 @@ if (totalSize > maxTotalSize) {
 // 检查必要的文件是否存在
 const requiredFiles = [
     'extension.js',
-    'cursor-database-reader.js',
-    'cline-reader.js'
+    'agents/cursor/cursor-database-reader.js',
+    'agents/cline/cline-reader.js',
+    'cloud/cloud-sync.js'
 ];
 
 console.log('\n📁 检查必要文件:');

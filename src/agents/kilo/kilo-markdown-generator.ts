@@ -1,14 +1,14 @@
 /**
- * CodeGeeX Markdown 生成器
+ * Kilo Markdown 生成器
  */
 
-import { CodeGeeXConversation, CodeGeeXMessage } from './codegeex-types';
-import { Translator } from './i18n';
+import { KiloConversation, KiloMessage } from './kilo-types';
+import { Translator } from '../../i18n';
 
-export class CodeGeeXMarkdownGenerator {
+export class KiloMarkdownGenerator {
     constructor(private t: Translator) {}
 
-    generate(conversation: CodeGeeXConversation, messages: CodeGeeXMessage[]): string {
+    generate(conversation: KiloConversation, messages: KiloMessage[]): string {
         let markdown = '';
 
         // 文件头
@@ -57,26 +57,17 @@ export class CodeGeeXMarkdownGenerator {
         return markdown;
     }
 
-    private generateHeader(conversation: CodeGeeXConversation): string {
-        let header = `---
+    private generateHeader(conversation: KiloConversation): string {
+        return `---
 title: "${conversation.title}"
 created: ${new Date(conversation.createdAt).toISOString()}
 updated: ${new Date(conversation.updatedAt).toISOString()}
-source: "CodeGeeX"
-`;
-
-        if (conversation.model) {
-            header += `model: "${conversation.model}"\n`;
-        }
-        if (conversation.language) {
-            header += `language: "${conversation.language}"\n`;
-        }
-
-        header += '---';
-        return header;
+source: "Kilo"
+model: "${conversation.model || 'Unknown'}"
+---`;
     }
 
-    private generateMetadata(conversation: CodeGeeXConversation, messages: CodeGeeXMessage[]): string {
+    private generateMetadata(conversation: KiloConversation, messages: KiloMessage[]): string {
         const userMessages = messages.filter(m => m.role === 'user').length;
         const assistantMessages = messages.filter(m => m.role === 'assistant').length;
         const createdDate = new Date(conversation.createdAt).toLocaleString();
@@ -88,14 +79,11 @@ source: "CodeGeeX"
         if (conversation.model) {
             metadata += `**Model**: ${conversation.model}\n`;
         }
-        if (conversation.language) {
-            metadata += `**Language**: ${conversation.language}\n`;
-        }
 
         return metadata;
     }
 
-    private generateSpeakerTitle(message: CodeGeeXMessage, index: number): string {
+    private generateSpeakerTitle(message: KiloMessage, index: number): string {
         const role = message.role;
         const icon = role === 'user' ? '💬' : role === 'assistant' ? '🤖' : '⚙️';
         const timestamp = new Date(message.timestamp).toLocaleString();

@@ -3,8 +3,8 @@
  * 将消息数组转换为格式化的 Markdown 文档
  */
 
-import { ComposerData, Message } from './types';
-import { Translator } from './i18n';
+import { ComposerData, Message } from '../../types';
+import { Translator } from '../../i18n';
 
 export class MarkdownGenerator {
     constructor(private t: Translator) {}

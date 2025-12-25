@@ -1,86 +1,81 @@
 /**
- * Codex 文件监听器
- * 监听 GitHub Copilot Chat 文件变化并自动同步
+ * Cline 文件监听器
+ * 监听 Cline 任务文件变化并自动同步
  */
 
 import * as chokidar from 'chokidar';
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { CodexReader } from './codex-reader';
-import { CodexConversationBuilder } from './codex-conversation-builder';
-import { CodexMarkdownGenerator } from './codex-markdown-generator';
-import { HistorySaver } from './history-saver';
-import { CodexWorkspaceFilter } from './codex-workspace-filter';
-import { createTranslator, LocaleSetting, Translator } from './i18n';
+import { ClineReader } from './cline-reader';
+import { ClineConversationBuilder } from './cline-conversation-builder';
+import { ClineMarkdownGenerator } from './cline-markdown-generator';
+import { HistorySaver } from '../../history-saver';
+import { ClineWorkspaceFilter } from './cline-workspace-filter';
+import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 
-export class CodexWatcher {
+export class ClineWatcher {
     private watcher: chokidar.FSWatcher | null = null;
     private storageDir: string;
     private lastSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private workspaceRoot: string;
-    private workspaceFilter: CodexWorkspaceFilter;
+    private workspaceFilter: ClineWorkspaceFilter;
     private t: Translator;
-
+    
     constructor(storageDir: string, workspaceRoot: string, localeSetting?: LocaleSetting) {
         this.storageDir = storageDir;
         this.workspaceRoot = workspaceRoot;
-        this.workspaceFilter = new CodexWorkspaceFilter(workspaceRoot);
+        this.workspaceFilter = new ClineWorkspaceFilter(workspaceRoot);
         this.t = createTranslator(localeSetting);
     }
-
+    
     /**
      * 启动监听
      */
     start(): void {
-        console.log('[Codex] Starting watcher for:', this.storageDir);
-
         // 1. 立即执行一次同步
         this.syncNow();
-
-        // 2. 监听对话目录变化
-        const conversationsDir = path.join(this.storageDir, 'conversations');
-
-        if (!conversationsDir) {
-            console.warn('[Codex] Conversations directory not found:', conversationsDir);
-            return;
-        }
-
+        
+        // 2. 监听任务目录变化
+        const tasksDir = path.join(this.storageDir, 'tasks');
+        const stateDir = path.join(this.storageDir, 'state');
+        
+        
         this.watcher = chokidar.watch(
-            conversationsDir,
+            [tasksDir, stateDir],
             {
                 persistent: true,
                 ignoreInitial: true,
-                depth: 1,
+                depth: 2, // 监听子目录
                 awaitWriteFinish: {
                     stabilityThreshold: 500,
                     pollInterval: 100
                 }
             }
         );
-
+        
         this.watcher.on('add', (filePath) => {
-            console.log('[Codex] File added:', filePath);
+            console.log('Cline file added:', filePath);
             this.scheduleSync();
         });
-
+        
         this.watcher.on('change', (filePath) => {
-            console.log('[Codex] File changed:', filePath);
+            console.log('Cline file changed:', filePath);
             this.scheduleSync();
         });
-
+        
         this.watcher.on('error', (error) => {
-            console.error('[Codex] Watcher error:', error);
+            console.error('[DEBUG] Cline watcher error:', error);
         });
-
+        
         // 3. 定时轮询（兜底，每 30 秒）
         setInterval(() => {
             this.syncNow();
         }, 30000); // 30 秒
-
-        console.log('[Codex] Watcher started for:', this.storageDir);
+        
+        console.log('Cline watcher started for:', this.storageDir);
     }
-
+    
     /**
      * 停止监听
      */
@@ -92,7 +87,7 @@ export class CodexWatcher {
             clearTimeout(this.debounceTimer);
         }
     }
-
+    
     /**
      * 调度同步（防抖）
      */
@@ -101,70 +96,66 @@ export class CodexWatcher {
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
         }
-
+        
         this.debounceTimer = setTimeout(() => {
             this.syncNow();
         }, 2000);
     }
-
+    
     /**
      * 立即同步
      */
     syncNow(): void {
         const now = Date.now();
-
+        
         // 避免过于频繁的同步
         if (now - this.lastSync < 1000) {
             return;
         }
-
+        
         this.lastSync = now;
-
+        
         this.performSync().catch(error => {
-            console.error('[Codex] Sync failed:', error);
+            console.error('Cline sync failed:', error);
         });
     }
-
+    
     /**
      * 执行同步
      */
     private async performSync(): Promise<void> {
-        console.log('[Codex] Starting sync');
-        const reader = new CodexReader(this.storageDir);
+        const reader = new ClineReader(this.storageDir);
 
-        // 检查存储目录是否存在
         if (!reader.exists()) {
-            console.warn('[Codex] Storage directory not found:', this.storageDir);
+            console.warn('[Cline] Storage directory not found:', this.storageDir);
             return;
         }
 
         try {
-            // 获取所有对话
-            const conversations = reader.getAllConversations();
+            const tasks = reader.getAllTasks();
 
-            console.log(`[Codex] Found ${conversations.length} conversations`);
-
-            if (conversations.length === 0) {
+            if (tasks.length === 0) {
                 return;
             }
-
-            for (const conversation of conversations) {
-                // 只处理属于当前工作区的对话
-                if (!this.workspaceFilter.belongsToCurrentWorkspace(conversation)) {
+            
+            let savedCount = 0;
+            for (const task of tasks) {
+                // 只处理属于当前工作区的任务
+                if (!this.workspaceFilter.belongsToCurrentWorkspace(task)) {
                     continue;
                 }
 
                 // 构建对话
-                const builder = new CodexConversationBuilder(this.t);
-                const messages = builder.buildConversation(conversation);
+                const builder = new ClineConversationBuilder(this.t);
+                const messages = builder.buildConversation(task);
 
                 if (messages.length === 0) {
                     continue;
                 }
 
                 // 生成 Markdown
-                const generator = new CodexMarkdownGenerator(this.t);
-                const markdown = generator.generate(conversation, conversation.messages);
+                const generator = new ClineMarkdownGenerator(this.t);
+                const markdown = generator.generate(task, messages);
 
                 // 保存
                 const config = vscode.workspace.getConfiguration('chatHistory');
@@ -172,21 +163,32 @@ export class CodexWatcher {
 
                 const saver = new HistorySaver(this.workspaceRoot, outputDir);
 
-                // 创建兼容的 composer 对象
                 const composerLike = {
-                    composerId: conversation.id,
-                    name: conversation.title,
-                    createdAt: conversation.createdAt
+                    composerId: task.id,
+                    name: task.metadata.task,
+                    createdAt: new Date(task.metadata.ts).toISOString()
                 };
 
                 const savedPath = await saver.save(composerLike as any, markdown);
-                console.log(`[Codex] Saved conversation ${conversation.id} to: ${savedPath}`);
+                console.log(`[Cline] Saved task ${task.id} to: ${savedPath}`);
+                savedCount++;
             }
 
-            console.log('[Codex] Sync completed');
+            // 更新侧边栏统计信息
+            if (savedCount > 0) {
+                const automationProvider = (global as any).__automationStatusProvider;
+                if (automationProvider) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleString();
+                    automationProvider.updateStats(timeStr, savedCount);
+                }
+            }
+            
         } catch (error) {
-            console.error('[Codex] Error during sync:', error);
+            console.error('[DEBUG] Error during Cline sync:', error);
+            console.error('[DEBUG] Stack trace:', (error as Error).stack);
             throw error;
         }
     }
 }
+

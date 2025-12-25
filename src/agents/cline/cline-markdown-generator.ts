@@ -4,7 +4,7 @@
  */
 
 import { ClineTask, ClineMessage } from './cline-types';
-import { Translator } from './i18n';
+import { Translator } from '../../i18n';
 
 export class ClineMarkdownGenerator {
     constructor(private t: Translator) {}
@@ -194,6 +194,9 @@ export class ClineMarkdownGenerator {
         return `${year}-${month}-${day} ${hour}:${minute}Z`;
     }
 }
+
+
+
 
 
 

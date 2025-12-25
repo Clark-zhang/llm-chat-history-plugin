@@ -1,14 +1,14 @@
 /**
- * Blackbox AI Markdown 生成器
+ * CodeGeeX Markdown 生成器
  */
 
-import { BlackboxConversation, BlackboxMessage } from './blackboxai-types';
-import { Translator } from './i18n';
+import { CodeGeeXConversation, CodeGeeXMessage } from './codegeex-types';
+import { Translator } from '../../i18n';
 
-export class BlackboxMarkdownGenerator {
+export class CodeGeeXMarkdownGenerator {
     constructor(private t: Translator) {}
 
-    generate(conversation: BlackboxConversation, messages: BlackboxMessage[]): string {
+    generate(conversation: CodeGeeXConversation, messages: CodeGeeXMessage[]): string {
         let markdown = '';
 
         // 文件头
@@ -57,17 +57,26 @@ export class BlackboxMarkdownGenerator {
         return markdown;
     }
 
-    private generateHeader(conversation: BlackboxConversation): string {
-        return `---
+    private generateHeader(conversation: CodeGeeXConversation): string {
+        let header = `---
 title: "${conversation.title}"
 created: ${new Date(conversation.createdAt).toISOString()}
 updated: ${new Date(conversation.updatedAt).toISOString()}
-source: "Blackbox AI"
-model: "${conversation.model || 'Unknown'}"
----`;
+source: "CodeGeeX"
+`;
+
+        if (conversation.model) {
+            header += `model: "${conversation.model}"\n`;
+        }
+        if (conversation.language) {
+            header += `language: "${conversation.language}"\n`;
+        }
+
+        header += '---';
+        return header;
     }
 
-    private generateMetadata(conversation: BlackboxConversation, messages: BlackboxMessage[]): string {
+    private generateMetadata(conversation: CodeGeeXConversation, messages: CodeGeeXMessage[]): string {
         const userMessages = messages.filter(m => m.role === 'user').length;
         const assistantMessages = messages.filter(m => m.role === 'assistant').length;
         const createdDate = new Date(conversation.createdAt).toLocaleString();
@@ -79,11 +88,14 @@ model: "${conversation.model || 'Unknown'}"
         if (conversation.model) {
             metadata += `**Model**: ${conversation.model}\n`;
         }
+        if (conversation.language) {
+            metadata += `**Language**: ${conversation.language}\n`;
+        }
 
         return metadata;
     }
 
-    private generateSpeakerTitle(message: BlackboxMessage, index: number): string {
+    private generateSpeakerTitle(message: CodeGeeXMessage, index: number): string {
         const role = message.role;
         const icon = role === 'user' ? '💬' : role === 'assistant' ? '🤖' : '⚙️';
         const timestamp = new Date(message.timestamp).toLocaleString();

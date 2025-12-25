@@ -3,9 +3,9 @@
  * 将 Composer 和 Bubble 数据转换为统一的消息格式
  */
 
-import { ComposerData, Bubble, Message, AIResponseBubble, ToolUseBlock } from './types';
-import { formatToolUse } from './tool-use-formatter';
-import { Translator } from './i18n';
+import { ComposerData, Bubble, Message, AIResponseBubble, ToolUseBlock } from '../../types';
+import { formatToolUse } from '../../tool-use-formatter';
+import { Translator } from '../../i18n';
 
 export class ConversationBuilder {
     constructor(private t: Translator) {}

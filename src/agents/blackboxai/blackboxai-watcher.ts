@@ -8,9 +8,9 @@ import * as path from 'path';
 import { BlackboxReader } from './blackboxai-reader';
 import { BlackboxConversationBuilder } from './blackboxai-conversation-builder';
 import { BlackboxMarkdownGenerator } from './blackboxai-markdown-generator';
-import { HistorySaver } from './history-saver';
+import { HistorySaver } from '../../history-saver';
 import { BlackboxWorkspaceFilter } from './blackboxai-workspace-filter';
-import { createTranslator, LocaleSetting, Translator } from './i18n';
+import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 
 export class BlackboxWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -116,6 +116,7 @@ export class BlackboxWatcher {
                 return;
             }
 
+            let savedCount = 0;
             for (const conversation of conversations) {
                 if (!this.workspaceFilter.belongsToCurrentWorkspace(conversation)) {
                     continue;
@@ -144,6 +145,17 @@ export class BlackboxWatcher {
 
                 const savedPath = await saver.save(composerLike as any, markdown);
                 console.log(`[BlackboxAI] Saved conversation ${conversation.id} to: ${savedPath}`);
+                savedCount++;
+            }
+
+            // 更新侧边栏统计信息
+            if (savedCount > 0) {
+                const automationProvider = (global as any).__automationStatusProvider;
+                if (automationProvider) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleString();
+                    automationProvider.updateStats(timeStr, savedCount);
+                }
             }
 
             console.log('[BlackboxAI] Sync completed');
