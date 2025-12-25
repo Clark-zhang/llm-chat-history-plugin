@@ -234,6 +234,7 @@ export class CloudSyncManager implements vscode.UriHandler {
 
     /**
      * Make HTTP request
+     * 支持滑动过期：自动检测并更新服务器返回的新 token
      */
     private async request<T>(
         method: string,
@@ -269,8 +270,16 @@ export class CloudSyncManager implements vscode.UriHandler {
                 (res) => {
                     let data = '';
                     res.on('data', (chunk) => (data += chunk));
-                    res.on('end', () => {
+                    res.on('end', async () => {
                         try {
+                            // 检查是否有新 token（滑动过期机制）
+                            const newToken = res.headers['x-new-token'];
+                            if (newToken && typeof newToken === 'string') {
+                                console.log('[CloudSync] Token refreshed by server (sliding expiration)');
+                                // 更新存储的 token
+                                await this.context.globalState.update(CloudSyncManager.TOKEN_KEY, newToken);
+                            }
+
                             const json = JSON.parse(data);
                             if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                                 resolve(json as T);
