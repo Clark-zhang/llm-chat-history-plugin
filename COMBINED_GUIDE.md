@@ -702,11 +702,6 @@ Get-Content dist\extension.js -Head 30
 
 ## 4.1 打包生产版本
 ```bash
-# 完整打包流程（包含编译、混淆）
-npm run package
-
-# 或手动执行
-npm run build
 vsce package --allow-missing-repository
 ```
 
