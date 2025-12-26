@@ -1,16 +1,23 @@
 # 🚀 AI Chat History Saver
 
-**The best way to explore and preserve your AI coding conversations.**
+**The best way to explore, sync, and search your AI coding conversations.**
 
-Auto-save chat history from Cursor IDE and VS Code AI extensions (Cline, Kilo, Blackbox AI) to searchable, beautifully formatted Markdown files.
+Auto-save and cloud-sync chat history from Cursor IDE and VS Code AI extensions (Cline, Kilo, Blackbox AI) with a beautiful web dashboard featuring workspace filtering, full-text search, and visual timeline.
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ClarkZhang.llm-chat-history?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/d/ClarkZhang.llm-chat-history?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/r/ClarkZhang.llm-chat-history?color=yellow&label=Rating)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 
-> 💡 **Install once, never lose an AI conversation again** - Zero config, automatic saving, full-text search
+> 💡 **Install once, never lose an AI conversation again** - Zero config, automatic saving, cloud sync, workspace management
 
 ## ✨ Why Choose AI Chat History Saver?
+
+### 🌐 Powerful Web Dashboard (NEW!)
+- **📁 Workspace Filter** - Filter conversations by project/workspace instantly
+- **🔍 Full-Text Search** - Search across all conversations, titles, and AI thinking
+- **📊 Visual Timeline** - Interactive timeline showing message flow and tool calls
+- **🎨 Dark/Light Theme** - Beautiful themes for day and night coding
+- **📋 Raw Mode** - Toggle between formatted view and raw JSON for debugging
 
 ### 🔍 Better Way to Explore Your AI Interaction History
 - **Full-Text Search** - Instantly find any conversation by keyword
@@ -23,6 +30,12 @@ Auto-save chat history from Cursor IDE and VS Code AI extensions (Cline, Kilo, B
 - **Real-time Monitoring** - New conversations saved every 30 seconds
 - **Workspace Aware** - Only saves conversations relevant to your current project
 - **Multi-Source Support** - Captures from Cursor, Cline, Kilo, Blackbox AI simultaneously
+
+### ☁️ Cloud Sync & Access Anywhere
+- **Auto Cloud Sync** - Conversations automatically synced to the cloud
+- **Multi-Device Access** - Access your history from any device via web dashboard
+- **Workspace Tracking** - Cloud keeps track of which project each conversation belongs to
+- **Secure & Private** - Your data is encrypted and only accessible by you
 
 ## 🔥 Quick Preview
 
@@ -128,6 +141,15 @@ The extension automatically detects which sources are available and monitors the
 - **Blackbox AI** (VS Code Extension) - AI-powered coding conversations
 - **Auto-Detection** - Automatically finds and monitors available AI tools
 
+### 🌐 Web Dashboard Features (Cloud Sync)
+- **📁 Workspace Filter** - Filter sessions by workspace/project with dropdown selector
+- **🔍 Full-Text Search** - Search titles, content, and AI thinking across all sessions
+- **📊 Visual Timeline** - Interactive timeline with message flow and tool call visualization
+- **🎨 Dark/Light Theme** - Beautiful themes with smooth transitions
+- **📋 Raw Mode** - Switch between formatted view and raw JSON data
+- **🖱️ Click/Hover Mode** - Choose how to expand message details
+- **📱 Responsive Design** - Works on desktop and tablet
+
 ### 📝 Professional Markdown Export
 - **Beautiful Formatting** - Clean, readable Markdown with emoji indicators
 - **Complete Context** - User messages, AI responses, thinking processes, and tool calls
@@ -136,7 +158,7 @@ The extension automatically detects which sources are available and monitors the
 - **Timestamped & Organized** - Files named by date and conversation title
 
 ### 🔧 Smart Features
-- **Workspace Filtering** - Only saves conversations relevant to your current project
+- **Workspace Tracking** - Records which project each conversation belongs to
 - **Real-time Monitoring** - Automatically detects new conversations (30s intervals)
 - **Git Integration** - Perfect for tracking AI conversations alongside code changes
 - **Multi-language Support** - UI and exports available in English and Chinese
@@ -144,6 +166,7 @@ The extension automatically detects which sources are available and monitors the
 - **🔍 Full-Text Search** - Instantly search through all your saved conversations
 
 ### 📊 Perfect Integration
+- **Web Dashboard** - Access your history via beautiful web interface
 - **Obsidian** - Import as knowledge base notes
 - **Notion** - Rich formatting with links and embeds
 - **GitHub** - Version control for AI conversations
@@ -429,7 +452,11 @@ We are continuously improving this extension.
 
 ### ✅ Recently Added
 - 🔍 **Full-Text Search**: Instantly search through all your saved conversations (v0.2.8)
-- ☁️ **Cloud Sync**: Sync your chat history to your own server (v0.3.0)
+- ☁️ **Cloud Sync**: Sync your chat history to the cloud (v0.3.0)
+- 📁 **Workspace Filter**: Filter conversations by project/workspace (v0.3.1)
+- 📋 **Raw Mode**: View raw JSON data in web dashboard (v0.3.1)
+- 📊 **Visual Timeline**: Interactive timeline with tool call visualization (v0.3.1)
+- 🎨 **Dark/Light Theme**: Beautiful themes for the web dashboard (v0.3.1)
 
 ### 🚀 Coming Soon
 - 👥 **Team Collaboration**: Share and collaborate on conversations
@@ -483,6 +510,8 @@ We're continuously improving!
 **✅ Recently Added:**
 - 🔍 **Full-Text Search** - Find conversations instantly (v0.2.8)
 - ☁️ **Cloud Sync** - Access your history anywhere (v0.3.0)
+- 📁 **Workspace Filter** - Filter by project (v0.3.1)
+- 📋 **Raw Mode & Visual Timeline** - Enhanced dashboard (v0.3.1)
 
 **🚀 Coming Soon:**
 - 👥 **Team Sharing** - Collaborate on AI conversations

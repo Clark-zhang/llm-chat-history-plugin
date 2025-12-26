@@ -19,6 +19,8 @@ import { Message } from '../../types';
 interface CachedSession {
     title: string;
     session_id: string;
+    workspace_path?: string;
+    workspace_name?: string;
     messages: Message[];
 }
 
@@ -231,6 +233,8 @@ export class KiloWatcher {
                 sessionsToCache.push({
                     title: conversation.title || 'Untitled',
                     session_id: conversation.id,
+                    workspace_path: this.workspaceRoot,
+                    workspace_name: this.workspaceRoot.split(/[/\\]/).pop() || 'Unknown',
                     messages: normalizedMessages,
                 });
             }
@@ -283,6 +287,8 @@ export class KiloWatcher {
             const cloudSessions: SyncSession[] = this.cachedSessions.map(session => ({
                 title: session.title,
                 session_id: session.session_id,
+                workspace_path: session.workspace_path,
+                workspace_name: session.workspace_name,
                 messages: cloudSync.convertMessages(session.messages),
             }));
 
