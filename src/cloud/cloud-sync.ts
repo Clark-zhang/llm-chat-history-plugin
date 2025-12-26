@@ -57,7 +57,7 @@ export class CloudSyncManager implements vscode.UriHandler {
     private static readonly TOKEN_KEY = 'cloudSync.token';
     private static readonly USER_KEY = 'cloudSync.user';
     private static readonly STATE_KEY = 'cloudSync.authState';
-    private static readonly OFFICIAL_SERVER_URL = 'https://api.llmchathistory.com'; // 官方服务器地址
+    private static readonly OFFICIAL_SERVER_URL = 'https://llm-chat-history.com'; // 官方服务器地址
 
     constructor(context: vscode.ExtensionContext, localeSetting?: LocaleSetting) {
         this.context = context;

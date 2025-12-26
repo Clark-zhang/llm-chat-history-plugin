@@ -89,7 +89,7 @@ export class TelemetryManager {
     // 存储 key 常量
     private static readonly ANONYMOUS_ID_KEY = 'telemetry.anonymousId';
     private static readonly FIRST_INSTALL_KEY = 'telemetry.firstInstallTime';
-    private static readonly OFFICIAL_SERVER_URL = 'https://api.llmchathistory.com';
+    private static readonly OFFICIAL_SERVER_URL = 'https://llm-chat-history.com';
 
     // 配置
     private static readonly FLUSH_INTERVAL = 30000; // 30秒自动刷新
