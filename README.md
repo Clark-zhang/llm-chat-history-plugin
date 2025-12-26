@@ -8,7 +8,11 @@ Auto-save and cloud-sync chat history from Cursor IDE and VS Code AI extensions 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/d/ClarkZhang.llm-chat-history?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/r/ClarkZhang.llm-chat-history?color=yellow&label=Rating)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 
-> 💡 **Install once, never lose an AI conversation again** - Zero config, automatic saving, cloud sync, workspace management
+> 💡 **AI talks too fast to keep up?** Explore your AI conversations in a better way - Zero config, automatic saving, cloud sync, workspace management
+
+## 🎬 Demo
+
+https://github.com/user-attachments/assets/f0b7f5b1-0aac-4509-8d42-eadf738a7989
 
 ## ✨ Why Choose AI Chat History Saver?
 
