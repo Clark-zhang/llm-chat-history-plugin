@@ -184,10 +184,43 @@ export class KiloReader {
         }
 
         if (Array.isArray(content)) {
-            return content
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join('\n');
+            const parts: string[] = [];
+            
+            for (const item of content) {
+                if (!item) continue;
+                
+                // 处理 text 类型
+                if (item.type === 'text' && item.text) {
+                    parts.push(item.text);
+                }
+                // 处理 thinking 类型（Kilo/Cline 的思考过程）
+                else if (item.type === 'thinking' && item.thinking) {
+                    parts.push(`💭 思考过程：\n${item.thinking}`);
+                }
+                // 处理 tool_use 类型（简单描述）
+                else if (item.type === 'tool_use' && item.name) {
+                    parts.push(`🔧 工具调用: ${item.name}`);
+                }
+                // 处理 tool_result 类型
+                else if (item.type === 'tool_result' && item.content) {
+                    // tool_result 内容可能很长，只取摘要
+                    const resultPreview = typeof item.content === 'string' 
+                        ? item.content.substring(0, 500) 
+                        : JSON.stringify(item.content).substring(0, 500);
+                    parts.push(`📋 工具结果: ${resultPreview}${item.content?.length > 500 ? '...' : ''}`);
+                }
+                // 处理其他有 text 字段的类型
+                else if (item.text) {
+                    parts.push(item.text);
+                }
+            }
+            
+            return parts.join('\n\n');
+        }
+
+        // 处理对象类型（可能有 text 字段）
+        if (typeof content === 'object' && content !== null && content.text) {
+            return content.text;
         }
 
         return '';

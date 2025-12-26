@@ -12,15 +12,29 @@ import { HistorySaver } from '../../history-saver';
 import { KiloWorkspaceFilter } from './kilo-workspace-filter';
 import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 import { trackEvent, trackError, TelemetryEvents } from '../../telemetry/telemetry';
+import { CloudSyncManager, SyncSession } from '../../cloud/cloud-sync';
+import { Message } from '../../types';
+
+// 缓存的会话数据，用于云端同步
+interface CachedSession {
+    title: string;
+    session_id: string;
+    messages: Message[];
+}
 
 export class KiloWatcher {
     private watcher: chokidar.FSWatcher | null = null;
     private storageDir: string;
-    private lastSync: number = 0;
+    private lastLocalSync: number = 0;
+    private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
+    private cloudSyncTimer: NodeJS.Timeout | null = null;
     private workspaceRoot: string;
     private workspaceFilter: KiloWorkspaceFilter;
     private t: Translator;
+
+    // 缓存会话数据，供云端同步使用
+    private cachedSessions: CachedSession[] = [];
 
     constructor(storageDir: string, workspaceRoot: string, localeSetting?: LocaleSetting) {
         this.storageDir = storageDir;
@@ -65,11 +79,22 @@ export class KiloWatcher {
             trackError('watcher_error', String(error), 'kilo');
         });
 
+        // 定时轮询本地保存（每 30 秒）
         setInterval(() => {
             this.syncNow();
         }, 30000);
 
-        console.log('[Kilo] Watcher started for:', this.storageDir);
+        // 定时云端同步（每 60 秒）
+        setInterval(() => {
+            this.cloudSyncNow();
+        }, 60000);
+
+        // 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
+        setTimeout(() => {
+            this.cloudSyncNow();
+        }, 5000);
+
+        console.log('[Kilo] Watcher started (local: 30s, cloud: 60s)');
     }
 
     stop(): void {
@@ -81,6 +106,9 @@ export class KiloWatcher {
         }
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
+        }
+        if (this.cloudSyncTimer) {
+            clearTimeout(this.cloudSyncTimer);
         }
     }
 
@@ -96,25 +124,46 @@ export class KiloWatcher {
 
     syncNow(): void {
         const now = Date.now();
-        if (now - this.lastSync < 1000) {
+        if (now - this.lastLocalSync < 1000) {
             return;
         }
 
-        this.lastSync = now;
+        this.lastLocalSync = now;
 
-        this.performSync().catch(error => {
-            console.error('[Kilo] Sync failed:', error);
+        this.performLocalSync().catch(error => {
+            console.error('[Kilo] Local sync failed:', error);
         });
     }
 
-    private async performSync(): Promise<void> {
-        console.log('[Kilo] Starting sync');
+    /**
+     * 立即执行云端同步
+     */
+    cloudSyncNow(): void {
+        const now = Date.now();
+
+        // 避免过于频繁的云端同步
+        if (now - this.lastCloudSync < 5000) {
+            return;
+        }
+
+        this.lastCloudSync = now;
+
+        this.performCloudSync().catch(error => {
+            console.error('[Kilo] Cloud sync failed:', error);
+        });
+    }
+
+    private async performLocalSync(): Promise<void> {
+        console.log('[Kilo] Starting local sync');
         const reader = new KiloReader(this.storageDir);
 
         if (!reader.exists()) {
             console.warn('[Kilo] Storage directory not found:', this.storageDir);
             return;
         }
+
+        // 收集会话数据用于后续云端同步
+        const sessionsToCache: CachedSession[] = [];
 
         try {
             const conversations = reader.getAllConversations();
@@ -164,7 +213,30 @@ export class KiloWatcher {
                 const savedPath = await saver.save(composerLike as any, markdown);
                 console.log(`[Kilo] Saved conversation ${conversation.id} to: ${savedPath}`);
                 savedCount++;
+
+                // 缓存会话数据供云端同步使用
+                // 确保 toolResults 和 toolUses 格式正确
+                const normalizedMessages: Message[] = messages.map(msg => ({
+                    ...msg,
+                    toolUses: msg.toolUses?.map((tu: any) => ({
+                        name: tu.name,
+                        markdown: typeof tu.input === 'string' ? tu.input : JSON.stringify(tu.input),
+                    })),
+                    toolResults: msg.toolResults?.map((tr: any) => ({
+                        name: tr.toolUseId || tr.name || 'unknown',
+                        result: tr.content || tr.result,
+                    })),
+                }));
+
+                sessionsToCache.push({
+                    title: conversation.title || 'Untitled',
+                    session_id: conversation.id,
+                    messages: normalizedMessages,
+                });
             }
+
+            // 更新缓存
+            this.cachedSessions = sessionsToCache;
 
             // 更新侧边栏统计信息
             if (savedCount > 0) {
@@ -176,11 +248,62 @@ export class KiloWatcher {
                 }
             }
 
-            console.log('[Kilo] Sync completed');
+            console.log('[Kilo] Local sync completed');
         } catch (error) {
             console.error('[Kilo] Error during sync:', error);
             trackError('sync_error', String(error), 'kilo');
             throw error;
+        }
+    }
+
+    /**
+     * 执行云端同步 - 将缓存的会话数据同步到云端
+     */
+    private async performCloudSync(): Promise<void> {
+        const cloudSync = (global as any).__cloudSyncManager as CloudSyncManager | undefined;
+        const shouldCloudSync = cloudSync?.isLoggedIn() && cloudSync?.isEnabled() && cloudSync?.isAutoSyncEnabled();
+
+        if (!shouldCloudSync || !cloudSync) {
+            return;
+        }
+
+        if (this.cachedSessions.length === 0) {
+            console.log('[Kilo] No sessions to sync to cloud');
+            return;
+        }
+
+        // 上报云同步开始事件
+        trackEvent(TelemetryEvents.CLOUD_SYNC_STARTED, {
+            source: 'kilo',
+            sessions_count: this.cachedSessions.length,
+        });
+
+        try {
+            // 转换缓存的会话为云端同步格式
+            const cloudSessions: SyncSession[] = this.cachedSessions.map(session => ({
+                title: session.title,
+                session_id: session.session_id,
+                messages: cloudSync.convertMessages(session.messages),
+            }));
+
+            await cloudSync.syncSessions('kilo', cloudSessions);
+            console.log(`[Kilo] Synced ${cloudSessions.length} sessions to cloud`);
+
+            // 上报云同步成功事件
+            trackEvent(TelemetryEvents.CLOUD_SYNC_COMPLETED, {
+                source: 'kilo',
+                sessions_count: cloudSessions.length,
+            });
+        } catch (error) {
+            console.error('[Kilo] Cloud sync failed:', error);
+
+            // 上报云同步失败事件
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            trackEvent(TelemetryEvents.CLOUD_SYNC_FAILED, {
+                source: 'kilo',
+                error_message: errorMessage,
+            });
+            trackError('cloud_sync_error', errorMessage, 'kilo');
         }
     }
 }

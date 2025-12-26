@@ -13,15 +13,29 @@ import { HistorySaver } from '../../history-saver';
 import { ClineWorkspaceFilter } from './cline-workspace-filter';
 import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 import { trackEvent, trackError, TelemetryEvents } from '../../telemetry/telemetry';
+import { CloudSyncManager, SyncSession } from '../../cloud/cloud-sync';
+import { Message } from '../../types';
+
+// 缓存的会话数据，用于云端同步
+interface CachedSession {
+    title: string;
+    session_id: string;
+    messages: Message[];
+}
 
 export class ClineWatcher {
     private watcher: chokidar.FSWatcher | null = null;
     private storageDir: string;
-    private lastSync: number = 0;
+    private lastLocalSync: number = 0;
+    private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
+    private cloudSyncTimer: NodeJS.Timeout | null = null;
     private workspaceRoot: string;
     private workspaceFilter: ClineWorkspaceFilter;
     private t: Translator;
+    
+    // 缓存会话数据，供云端同步使用
+    private cachedSessions: CachedSession[] = [];
     
     constructor(storageDir: string, workspaceRoot: string, localeSetting?: LocaleSetting) {
         this.storageDir = storageDir;
@@ -73,12 +87,22 @@ export class ClineWatcher {
             trackError('watcher_error', String(error), 'cline');
         });
         
-        // 3. 定时轮询（兜底，每 30 秒）
+        // 3. 定时轮询本地保存（每 30 秒）
         setInterval(() => {
             this.syncNow();
         }, 30000); // 30 秒
         
-        console.log('Cline watcher started for:', this.storageDir);
+        // 4. 定时云端同步（每 60 秒）
+        setInterval(() => {
+            this.cloudSyncNow();
+        }, 60000); // 60 秒
+
+        // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
+        setTimeout(() => {
+            this.cloudSyncNow();
+        }, 5000);
+        
+        console.log('[Cline] Watcher started (local: 30s, cloud: 60s)');
     }
     
     /**
@@ -93,6 +117,9 @@ export class ClineWatcher {
         }
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
+        }
+        if (this.cloudSyncTimer) {
+            clearTimeout(this.cloudSyncTimer);
         }
     }
     
@@ -111,33 +138,54 @@ export class ClineWatcher {
     }
     
     /**
-     * 立即同步
+     * 立即执行本地同步
      */
     syncNow(): void {
         const now = Date.now();
         
         // 避免过于频繁的同步
-        if (now - this.lastSync < 1000) {
+        if (now - this.lastLocalSync < 1000) {
             return;
         }
         
-        this.lastSync = now;
+        this.lastLocalSync = now;
         
-        this.performSync().catch(error => {
-            console.error('Cline sync failed:', error);
+        this.performLocalSync().catch(error => {
+            console.error('[Cline] Local sync failed:', error);
+        });
+    }
+
+    /**
+     * 立即执行云端同步
+     */
+    cloudSyncNow(): void {
+        const now = Date.now();
+
+        // 避免过于频繁的云端同步
+        if (now - this.lastCloudSync < 5000) {
+            return;
+        }
+
+        this.lastCloudSync = now;
+
+        this.performCloudSync().catch(error => {
+            console.error('[Cline] Cloud sync failed:', error);
         });
     }
     
     /**
-     * 执行同步
+     * 执行本地同步 - 保存到本地 Markdown 文件
      */
-    private async performSync(): Promise<void> {
+    private async performLocalSync(): Promise<void> {
         const reader = new ClineReader(this.storageDir);
 
         if (!reader.exists()) {
             console.warn('[Cline] Storage directory not found:', this.storageDir);
             return;
         }
+
+        // 收集会话数据用于后续云端同步
+        const sessionsToCache: CachedSession[] = [];
 
         try {
             const tasks = reader.getAllTasks();
@@ -180,7 +228,35 @@ export class ClineWatcher {
                 const savedPath = await saver.save(composerLike as any, markdown);
                 console.log(`[Cline] Saved task ${task.id} to: ${savedPath}`);
                 savedCount++;
+
+                // 缓存会话数据供云端同步使用
+                // 转换 ClineMessage 为 Message 格式
+                const convertedMessages: Message[] = messages.map(msg => ({
+                    id: msg.id,
+                    type: msg.type,
+                    text: msg.text,
+                    timestamp: msg.timestamp,
+                    thinking: msg.thinking,
+                    toolUses: msg.toolUses?.map(tu => ({
+                        name: tu.name,
+                        markdown: JSON.stringify(tu.input),
+                    })),
+                    toolResults: msg.toolResults?.map(tr => ({
+                        name: tr.toolUseId,
+                        result: tr.content,
+                    })),
+                    images: msg.images,
+                }));
+
+                sessionsToCache.push({
+                    title: task.metadata.task || 'Untitled',
+                    session_id: task.id,
+                    messages: convertedMessages,
+                });
             }
+
+            // 更新缓存
+            this.cachedSessions = sessionsToCache;
 
             // 更新侧边栏统计信息
             if (savedCount > 0) {
@@ -197,6 +273,57 @@ export class ClineWatcher {
             console.error('[DEBUG] Stack trace:', (error as Error).stack);
             trackError('sync_error', String(error), 'cline');
             throw error;
+        }
+    }
+
+    /**
+     * 执行云端同步 - 将缓存的会话数据同步到云端
+     */
+    private async performCloudSync(): Promise<void> {
+        const cloudSync = (global as any).__cloudSyncManager as CloudSyncManager | undefined;
+        const shouldCloudSync = cloudSync?.isLoggedIn() && cloudSync?.isEnabled() && cloudSync?.isAutoSyncEnabled();
+
+        if (!shouldCloudSync || !cloudSync) {
+            return;
+        }
+
+        if (this.cachedSessions.length === 0) {
+            console.log('[Cline] No sessions to sync to cloud');
+            return;
+        }
+
+        // 上报云同步开始事件
+        trackEvent(TelemetryEvents.CLOUD_SYNC_STARTED, {
+            source: 'cline',
+            sessions_count: this.cachedSessions.length,
+        });
+
+        try {
+            // 转换缓存的会话为云端同步格式
+            const cloudSessions: SyncSession[] = this.cachedSessions.map(session => ({
+                title: session.title,
+                session_id: session.session_id,
+                messages: cloudSync.convertMessages(session.messages),
+            }));
+
+            await cloudSync.syncSessions('cline', cloudSessions);
+            console.log(`[Cline] Synced ${cloudSessions.length} sessions to cloud`);
+
+            // 上报云同步成功事件
+            trackEvent(TelemetryEvents.CLOUD_SYNC_COMPLETED, {
+                source: 'cline',
+                sessions_count: cloudSessions.length,
+            });
+        } catch (error) {
+            console.error('[Cline] Cloud sync failed:', error);
+
+            // 上报云同步失败事件
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            trackEvent(TelemetryEvents.CLOUD_SYNC_FAILED, {
+                source: 'cline',
+                error_message: errorMessage,
+            });
+            trackError('cloud_sync_error', errorMessage, 'cline');
         }
     }
 }
