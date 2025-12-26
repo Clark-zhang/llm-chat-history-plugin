@@ -27,6 +27,8 @@ export interface AuthResponse {
 export interface SyncSession {
     title: string;
     session_id: string;
+    workspace_path?: string;  // 工作区完整路径
+    workspace_name?: string;  // 工作区名称（文件夹名）
     messages: SyncMessage[];
 }
 
