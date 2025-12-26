@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { createTranslator, Translator } from './i18n';
+import { trackEvent, TelemetryEvents } from './telemetry/telemetry';
 
 /**
  * 搜索结果项
@@ -284,6 +285,12 @@ export async function showSearchInterface(context: vscode.ExtensionContext) {
         const results = await searcher.searchInWorkspace(query.trim(), workspaceRoot);
 
         progress.report({ increment: 100 });
+
+        // 上报搜索事件
+        trackEvent(TelemetryEvents.SEARCH_PERFORMED, {
+            results_count: results.length,
+            query_length: query.trim().length,
+        });
 
         if (results.length === 0) {
             vscode.window.showInformationMessage(t('search.noResults'));

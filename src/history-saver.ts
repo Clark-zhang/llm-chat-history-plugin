@@ -6,12 +6,15 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComposerData } from './types';
+import { trackEventIfLoggedIn, TelemetryEvents } from './telemetry/telemetry';
 
 export class HistorySaver {
     private historyDir: string;
+    private source: string;
     
-    constructor(workspaceRoot: string, outputDir: string = '.llm-chat-history/history') {
+    constructor(workspaceRoot: string, outputDir: string = '.llm-chat-history/history', source: string = 'unknown') {
         this.historyDir = path.join(workspaceRoot, outputDir);
+        this.source = source;
     }
     
     /**
@@ -30,6 +33,12 @@ export class HistorySaver {
 
         if (shouldSave) {
             await fs.writeFile(filepath, markdown, 'utf-8');
+            
+            // 上报文件保存事件（仅登录用户）
+            trackEventIfLoggedIn(TelemetryEvents.FILE_SAVED_LOCALLY, {
+                source: this.source,
+                session_id: composer.composerId,
+            });
         }
 
         return filepath;

@@ -8,12 +8,8 @@ import * as fs from 'fs';
 import { DatabaseWatcher } from './agents/cursor/cursor-database-watcher';
 import { ClineWatcher } from './agents/cline/cline-watcher';
 import { getClineStoragePath } from './agents/cline/cline-reader';
-import { CodexWatcher } from './agents/codex/codex-watcher';
-import { getCodexStoragePath } from './agents/codex/codex-reader';
 import { BlackboxWatcher } from './agents/blackboxai/blackboxai-watcher';
 import { getBlackboxStoragePath } from './agents/blackboxai/blackboxai-reader';
-import { CodeGeeXWatcher } from './agents/codegeex/codegeex-watcher';
-import { getCodeGeeXStoragePath } from './agents/codegeex/codegeex-reader';
 import { KiloWatcher } from './agents/kilo/kilo-watcher';
 import { getKiloStoragePath } from './agents/kilo/kilo-reader';
 import { createTranslator } from './i18n';
@@ -21,12 +17,23 @@ import { SqliteLoader } from './sqlite-loader';
 import { showSearchInterface } from './chat-search';
 import { CloudSyncManager } from './cloud/cloud-sync';
 import { AutomationStatusProvider, AccountStatusProvider } from './sidebar/status-view';
+import { TelemetryManager, TelemetryEvents } from './telemetry/telemetry';
 
 /**
  * 扩展激活时调用
  */
 export async function activate(context: vscode.ExtensionContext) {
     console.log('LLM Chat History Extension activated');
+
+    // 初始化遥测管理器
+    const telemetry = TelemetryManager.getInstance(context);
+    await telemetry.initialize();
+
+    // 检查是否首次安装
+    const isFirstInstall = await telemetry.checkFirstInstall();
+    if (isFirstInstall) {
+        telemetry.trackEvent(TelemetryEvents.EXTENSION_INSTALLED);
+    }
     
     // 首先确保 better-sqlite3 已正确加载
     const sqliteLoader = new SqliteLoader(context.extensionPath);
@@ -94,17 +101,6 @@ export async function activate(context: vscode.ExtensionContext) {
         console.log('[Cline] Storage not found');
     }
 
-    // 尝试启动 Codex (GitHub Copilot Chat) 监听
-    const codexStoragePath = getCodexStoragePath();
-    if (fs.existsSync(codexStoragePath)) {
-        console.log('Codex storage found, starting Codex watcher');
-        const codexWatcher = new CodexWatcher(codexStoragePath, workspaceRoot, localeSetting);
-        codexWatcher.start();
-        watchers.push(codexWatcher);
-    } else {
-        console.log('Codex storage not found:', codexStoragePath);
-    }
-
     // 尝试启动 Blackbox AI 监听
     const blackboxStoragePath = getBlackboxStoragePath();
     if (fs.existsSync(blackboxStoragePath)) {
@@ -114,17 +110,6 @@ export async function activate(context: vscode.ExtensionContext) {
         watchers.push(blackboxWatcher);
     } else {
         console.log('Blackbox AI storage not found:', blackboxStoragePath);
-    }
-
-    // 尝试启动 CodeGeeX 监听
-    const codegeexStoragePath = getCodeGeeXStoragePath();
-    if (fs.existsSync(codegeexStoragePath)) {
-        console.log('CodeGeeX storage found, starting CodeGeeX watcher');
-        const codegeexWatcher = new CodeGeeXWatcher(codegeexStoragePath, workspaceRoot, localeSetting);
-        codegeexWatcher.start();
-        watchers.push(codegeexWatcher);
-    } else {
-        console.log('CodeGeeX storage not found:', codegeexStoragePath);
     }
 
     // 尝试启动 Kilo 监听
@@ -140,17 +125,31 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // 如果没有找到任何聊天历史
     if (watchers.length === 0) {
-        console.warn('No chat history sources found (Cursor, Cline, Codex, Blackbox AI, CodeGeeX, or Kilo)');
+        console.warn('No chat history sources found (Cursor, Cline, Blackbox AI, or Kilo)');
         vscode.window.showWarningMessage(
-            'LLM Chat History: No supported AI plugins found. Please install and use Cursor, Cline, GitHub Copilot Chat, Blackbox AI, CodeGeeX, or Kilo.'
+            'LLM Chat History: No supported AI plugins found. Please install and use Cursor, Cline, Blackbox AI, or Kilo.'
         );
         return;
     }
+
+    // 上报插件激活事件
+    telemetry.trackEvent(TelemetryEvents.EXTENSION_ACTIVATED, {
+        watchers_count: watchers.length,
+        cursor_found: fs.existsSync(cursorDbPath),
+        cline_found: fs.existsSync(clineStoragePath),
+        blackbox_found: fs.existsSync(blackboxStoragePath),
+        kilo_found: fs.existsSync(kiloStoragePath),
+        cloud_sync_enabled: config.get<boolean>('cloudSync.enabled', false),
+        auto_save_enabled: autoSave,
+    });
     
     // 注册命令：手动保存
     const saveCommand = vscode.commands.registerCommand(
         'chatHistory.saveNow',
         () => {
+            // 上报手动保存事件
+            telemetry.trackEvent(TelemetryEvents.MANUAL_SAVE_TRIGGERED);
+            
             for (const watcher of watchers) {
                 watcher.syncNow();
             }
@@ -322,6 +321,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
             }
 
+            // 上报手动同步事件
+            telemetry.trackEvent(TelemetryEvents.MANUAL_SYNC_TRIGGERED);
+
             vscode.window.withProgress(
                 {
                     location: vscode.ProgressLocation.Notification,
@@ -447,6 +449,12 @@ export async function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration('chatHistory.cloudSync.enabled')) {
                 checkCloudSyncStatus();
                 automationStatusProvider.refresh();
+                // 上报云同步启用/禁用事件
+                const newConfig = vscode.workspace.getConfiguration('chatHistory');
+                const enabled = newConfig.get<boolean>('cloudSync.enabled', false);
+                telemetry.trackEvent(
+                    enabled ? TelemetryEvents.CLOUD_SYNC_ENABLED : TelemetryEvents.CLOUD_SYNC_DISABLED
+                );
             }
             if (e.affectsConfiguration('chatHistory.autoSave')) {
                 automationStatusProvider.refresh();
@@ -456,13 +464,27 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    // 导出 telemetry 供其他模块使用
+    (global as any).__telemetryManager = telemetry;
 }
 
 /**
  * 扩展停用时调用
  */
-export function deactivate() {
+export async function deactivate() {
     console.log('LLM Chat History Extension deactivated');
+
+    // 上报插件停用事件并刷新队列
+    try {
+        const telemetry = (global as any).__telemetryManager as TelemetryManager | undefined;
+        if (telemetry) {
+            await telemetry.trackEventImmediately(TelemetryEvents.EXTENSION_DEACTIVATED);
+            await telemetry.dispose();
+        }
+    } catch (error) {
+        console.error('[Telemetry] Failed to send deactivation event:', error);
+    }
 }
 
 /**

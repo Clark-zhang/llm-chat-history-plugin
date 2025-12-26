@@ -11,6 +11,7 @@ import { KiloMarkdownGenerator } from './kilo-markdown-generator';
 import { HistorySaver } from '../../history-saver';
 import { KiloWorkspaceFilter } from './kilo-workspace-filter';
 import { createTranslator, LocaleSetting, Translator } from '../../i18n';
+import { trackEvent, trackError, TelemetryEvents } from '../../telemetry/telemetry';
 
 export class KiloWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -29,6 +30,9 @@ export class KiloWatcher {
     }
 
     start(): void {
+        // 上报 watcher 启动事件
+        trackEvent(TelemetryEvents.WATCHER_STARTED, { source: 'kilo' });
+
         console.log('[Kilo] Starting watcher for:', this.storageDir);
         this.syncNow();
 
@@ -58,6 +62,7 @@ export class KiloWatcher {
 
         this.watcher.on('error', (error) => {
             console.error('[Kilo] Watcher error:', error);
+            trackError('watcher_error', String(error), 'kilo');
         });
 
         setInterval(() => {
@@ -68,6 +73,9 @@ export class KiloWatcher {
     }
 
     stop(): void {
+        // 上报 watcher 停止事件
+        trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'kilo' });
+
         if (this.watcher) {
             this.watcher.close();
         }
@@ -145,7 +153,7 @@ export class KiloWatcher {
                 const config = vscode.workspace.getConfiguration('chatHistory');
                 const outputDir = config.get<string>('outputDirectory', '.llm-chat-history');
 
-                const saver = new HistorySaver(this.workspaceRoot, outputDir);
+                const saver = new HistorySaver(this.workspaceRoot, outputDir, 'kilo');
 
                 const composerLike = {
                     composerId: conversation.id,
@@ -171,6 +179,7 @@ export class KiloWatcher {
             console.log('[Kilo] Sync completed');
         } catch (error) {
             console.error('[Kilo] Error during sync:', error);
+            trackError('sync_error', String(error), 'kilo');
             throw error;
         }
     }

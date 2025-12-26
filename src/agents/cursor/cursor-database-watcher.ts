@@ -14,6 +14,7 @@ import { createTranslator, LocaleSetting, Translator } from '../../i18n';
 import { SqliteLoader } from '../../sqlite-loader';
 import { CloudSyncManager, SyncSession } from '../../cloud/cloud-sync';
 import { Message } from '../../types';
+import { trackEvent, trackError, TelemetryEvents } from '../../telemetry/telemetry';
 
 // 缓存的会话数据，用于云端同步
 interface CachedSession {
@@ -49,6 +50,9 @@ export class DatabaseWatcher {
      * 启动监听
      */
     start(): void {
+        // 上报 watcher 启动事件
+        trackEvent(TelemetryEvents.WATCHER_STARTED, { source: 'cursor' });
+
         // 1. 立即执行一次本地同步
         this.syncNow();
 
@@ -84,6 +88,9 @@ export class DatabaseWatcher {
      * 停止监听
      */
     stop(): void {
+        // 上报 watcher 停止事件
+        trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'cursor' });
+
         if (this.watcher) {
             this.watcher.close();
         }
@@ -221,7 +228,7 @@ export class DatabaseWatcher {
                 const config = vscode.workspace.getConfiguration('chatHistory');
                 const outputDir = config.get<string>('outputDirectory', '.llm-chat-history');
 
-                const saver = new HistorySaver(this.workspaceRoot, outputDir);
+                const saver = new HistorySaver(this.workspaceRoot, outputDir, 'cursor');
                 await saver.save(composer, markdown);
 
                 // 缓存会话数据供云端同步使用
@@ -263,6 +270,12 @@ export class DatabaseWatcher {
             return;
         }
 
+        // 上报云同步开始事件
+        trackEvent(TelemetryEvents.CLOUD_SYNC_STARTED, {
+            source: 'cursor',
+            sessions_count: this.cachedSessions.length,
+        });
+
         try {
             // 转换缓存的会话为云端同步格式
             const cloudSessions: SyncSession[] = this.cachedSessions.map(session => ({
@@ -273,8 +286,22 @@ export class DatabaseWatcher {
 
             await cloudSync.syncSessions('cursor', cloudSessions);
             console.log(`[CloudSync] Synced ${cloudSessions.length} sessions to cloud`);
+
+            // 上报云同步成功事件
+            trackEvent(TelemetryEvents.CLOUD_SYNC_COMPLETED, {
+                source: 'cursor',
+                sessions_count: cloudSessions.length,
+            });
         } catch (error) {
             console.error('[CloudSync] Cloud sync failed:', error);
+
+            // 上报云同步失败事件
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            trackEvent(TelemetryEvents.CLOUD_SYNC_FAILED, {
+                source: 'cursor',
+                error_message: errorMessage,
+            });
+            trackError('cloud_sync_error', errorMessage, 'cursor');
         }
     }
 }

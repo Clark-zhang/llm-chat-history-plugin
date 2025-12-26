@@ -12,6 +12,7 @@ import { ClineMarkdownGenerator } from './cline-markdown-generator';
 import { HistorySaver } from '../../history-saver';
 import { ClineWorkspaceFilter } from './cline-workspace-filter';
 import { createTranslator, LocaleSetting, Translator } from '../../i18n';
+import { trackEvent, trackError, TelemetryEvents } from '../../telemetry/telemetry';
 
 export class ClineWatcher {
     private watcher: chokidar.FSWatcher | null = null;
@@ -33,6 +34,9 @@ export class ClineWatcher {
      * 启动监听
      */
     start(): void {
+        // 上报 watcher 启动事件
+        trackEvent(TelemetryEvents.WATCHER_STARTED, { source: 'cline' });
+
         // 1. 立即执行一次同步
         this.syncNow();
         
@@ -66,6 +70,7 @@ export class ClineWatcher {
         
         this.watcher.on('error', (error) => {
             console.error('[DEBUG] Cline watcher error:', error);
+            trackError('watcher_error', String(error), 'cline');
         });
         
         // 3. 定时轮询（兜底，每 30 秒）
@@ -80,6 +85,9 @@ export class ClineWatcher {
      * 停止监听
      */
     stop(): void {
+        // 上报 watcher 停止事件
+        trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'cline' });
+
         if (this.watcher) {
             this.watcher.close();
         }
@@ -161,7 +169,7 @@ export class ClineWatcher {
                 const config = vscode.workspace.getConfiguration('chatHistory');
                 const outputDir = config.get<string>('outputDirectory', '.llm-chat-history');
 
-                const saver = new HistorySaver(this.workspaceRoot, outputDir);
+                const saver = new HistorySaver(this.workspaceRoot, outputDir, 'cline');
 
                 const composerLike = {
                     composerId: task.id,
@@ -187,6 +195,7 @@ export class ClineWatcher {
         } catch (error) {
             console.error('[DEBUG] Error during Cline sync:', error);
             console.error('[DEBUG] Stack trace:', (error as Error).stack);
+            trackError('sync_error', String(error), 'cline');
             throw error;
         }
     }

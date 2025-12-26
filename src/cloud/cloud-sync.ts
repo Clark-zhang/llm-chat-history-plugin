@@ -10,6 +10,7 @@ import { URL } from 'url';
 import { Message } from '../types';
 import { createTranslator, LocaleSetting, Translator } from '../i18n';
 import * as crypto from 'crypto';
+import { TelemetryManager, TelemetryEvents } from '../telemetry/telemetry';
 
 export interface CloudUser {
     id: string;
@@ -100,6 +101,11 @@ export class CloudSyncManager implements vscode.UriHandler {
             try {
                 const user = await this.request<{ user: CloudUser }>('GET', '/api/user/profile', undefined, token);
                 await this.storeAuth(token, user.user);
+
+                // 上报登录事件
+                this.trackTelemetryEvent(TelemetryEvents.USER_LOGGED_IN, {
+                    user_id: user.user.id,
+                });
                 
                 // 显示成功提示（更醒目）
                 vscode.window.showInformationMessage(
@@ -338,6 +344,8 @@ export class CloudSyncManager implements vscode.UriHandler {
      */
     async logout(): Promise<void> {
         const token = this.getToken();
+        const user = this.getUser();
+        
         if (token) {
             try {
                 await this.request('POST', '/api/auth/logout', undefined, token);
@@ -345,6 +353,12 @@ export class CloudSyncManager implements vscode.UriHandler {
                 // Ignore logout errors
             }
         }
+
+        // 上报登出事件
+        this.trackTelemetryEvent(TelemetryEvents.USER_LOGGED_OUT, {
+            user_id: user?.id,
+        });
+
         await this.clearAuth();
         vscode.window.showInformationMessage(this.t('cloud.logoutSuccess'));
     }
@@ -463,6 +477,20 @@ export class CloudSyncManager implements vscode.UriHandler {
      */
     getTranslator(): Translator {
         return this.t;
+    }
+
+    /**
+     * Track telemetry event
+     */
+    private trackTelemetryEvent(eventName: string, eventData?: Record<string, any>): void {
+        try {
+            const telemetry = (global as any).__telemetryManager as TelemetryManager | undefined;
+            if (telemetry) {
+                telemetry.trackEvent(eventName as any, eventData);
+            }
+        } catch (error) {
+            console.error('[CloudSync] Failed to track telemetry event:', error);
+        }
     }
 }
 

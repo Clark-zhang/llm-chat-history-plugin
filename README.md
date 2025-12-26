@@ -1,22 +1,28 @@
 # 🚀 AI Chat History Saver
 
-**Never lose your AI conversations again!** Automatically export chat history from Cursor, Cline, Kilo, Blackbox AI, and more to beautifully formatted Markdown files.
+**The best way to explore and preserve your AI coding conversations.**
+
+Auto-save chat history from Cursor IDE and VS Code AI extensions (Cline, Kilo, Blackbox AI) to searchable, beautifully formatted Markdown files.
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ClarkZhang.llm-chat-history?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/d/ClarkZhang.llm-chat-history?color=green&label=Downloads)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/r/ClarkZhang.llm-chat-history?color=yellow&label=Rating)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)
 
-> 💡 **Trusted by developers worldwide** - Automatic, reliable, and beautiful AI chat archiving
+> 💡 **Install once, never lose an AI conversation again** - Zero config, automatic saving, full-text search
 
 ## ✨ Why Choose AI Chat History Saver?
 
-- 🎯 **Zero Configuration** - Install and forget, works automatically
-- 📚 **Knowledge Management** - Build searchable knowledge bases from your AI chats
-- 👥 **Team Collaboration** - Share insights and solutions with your team
-- 🔄 **Version Control** - Track AI conversations in Git like code
-- 🎨 **Beautiful Output** - Professional Markdown with syntax highlighting
-- 🌍 **Multi-Language** - UI and exports in English/Chinese
-- 🏢 **Workspace Aware** - Only saves relevant conversations
+### 🔍 Better Way to Explore Your AI Interaction History
+- **Full-Text Search** - Instantly find any conversation by keyword
+- **Beautiful Markdown** - Read AI chats like documentation, not raw data
+- **Organized by Project** - Each workspace has its own searchable history
+- **Works with Any Tool** - Obsidian, Notion, GitHub, or your favorite editor
+
+### ⚡ Automatic History Saving - Set It and Forget It
+- **Zero Configuration** - Just install, it works immediately
+- **Real-time Monitoring** - New conversations saved every 30 seconds
+- **Workspace Aware** - Only saves conversations relevant to your current project
+- **Multi-Source Support** - Captures from Cursor, Cline, Kilo, Blackbox AI simultaneously
 
 ## 🔥 Quick Preview
 
@@ -102,10 +108,14 @@ Perfect for **Obsidian**, **Notion**, **GitHub**, or any Markdown editor! 📝
 
 ### Supported Chat Sources
 
-- **Cursor IDE**: Native chat history from Cursor
-- **Cline Extension**: Cline AI assistant conversations
-- **Kilo**: Kilo AI coding assistant conversations
-- **Blackbox AI**: Blackbox AI assistant conversations
+| Source | Type | Description |
+|--------|------|-------------|
+| **Cursor IDE** | IDE | Native chat history from Cursor (the AI-first code editor) |
+| **Cline** | VS Code Extension | [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) - Autonomous AI coding agent for VS Code |
+| **Kilo** | VS Code Extension | [Kilo Code](https://marketplace.visualstudio.com/items?itemName=kilocode.kilo-code) - AI coding assistant for VS Code |
+| **Blackbox AI** | VS Code Extension | [Blackbox AI](https://marketplace.visualstudio.com/items?itemName=Blackboxapp.blackbox) - AI-powered code autocomplete for VS Code |
+
+> **Note**: Cline, Kilo, and Blackbox AI refer to their **VS Code extension versions**. This extension reads their local storage data to export chat history.
 
 The extension automatically detects which sources are available and monitors them simultaneously!
 
@@ -113,9 +123,9 @@ The extension automatically detects which sources are available and monitors the
 
 ### 🤖 Multi-Platform AI Support
 - **Cursor IDE** - Native chat history with SQLite database
-- **Cline** - Claude-powered AI assistant conversations
-- **Kilo** - Advanced coding assistant sessions
-- **Blackbox AI** - AI-powered coding conversations
+- **Cline** (VS Code Extension) - Claude-powered AI assistant conversations
+- **Kilo** (VS Code Extension) - Advanced coding assistant sessions
+- **Blackbox AI** (VS Code Extension) - AI-powered coding conversations
 - **Auto-Detection** - Automatically finds and monitors available AI tools
 
 ### 📝 Professional Markdown Export
@@ -360,7 +370,9 @@ Example: `2025-12-23_10-30Z-implementing-chat-history.md`
 
 ### ✅ Tested Environments
 - **OS**: Windows 10/11 (fully tested)
-- **Applications**: Cursor IDE, VS Code with Cline/Kilo/Blackbox AI extensions
+- **IDE/Editor**: 
+  - Cursor IDE (AI-first code editor based on VS Code)
+  - VS Code with AI extensions (Cline, Kilo, Blackbox AI)
 - **VS Code Version**: 1.93.0 or higher
 
 ### ❓ Untested (May Work)
@@ -369,7 +381,11 @@ Example: `2025-12-23_10-30Z-implementing-chat-history.md`
 - Other AI coding assistants
 
 ### Prerequisites
-- At least one supported AI assistant installed (Cursor, Cline, Kilo, or Blackbox AI)
+- At least one supported AI assistant installed:
+  - **Cursor IDE** - [Download](https://cursor.sh/)
+  - **Cline** (VS Code Extension) - [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)
+  - **Kilo** (VS Code Extension) - [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=kilocode.kilo-code)
+  - **Blackbox AI** (VS Code Extension) - [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=Blackboxapp.blackbox)
 - Workspace folder must be open
 
 
