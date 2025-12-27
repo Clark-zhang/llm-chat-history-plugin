@@ -19,18 +19,23 @@ export class WorkspaceFilter {
         composer: ComposerData,
         reader: CursorDatabaseReader
     ): boolean {
+        const composerName = composer.name || composer.composerId;
+        
         if (!this.currentWorkspacePath) {
+            console.log(`[WorkspaceFilter] ✗ ${composerName}: No current workspace path`);
             return false;
         }
 
         const headers = composer.fullConversationHeadersOnly || [];
         if (headers.length === 0) {
+            console.log(`[WorkspaceFilter] ✗ ${composerName}: No headers`);
             return false;
         }
 
         const firstBubbleId = headers[0].bubbleId;
         const bubbles = reader.getComposerBubbles(composer.composerId, [firstBubbleId]);
         if (bubbles.length === 0) {
+            console.log(`[WorkspaceFilter] ✗ ${composerName}: No bubbles found`);
             return false;
         }
 
@@ -39,6 +44,7 @@ export class WorkspaceFilter {
         // Prefer workspaceUris when available
         if (bubble.workspaceUris && bubble.workspaceUris.length > 0) {
             const bubbleWorkspace = this.uriToPath(bubble.workspaceUris[0]);
+            console.log(`[WorkspaceFilter] ${composerName}: workspaceUri="${bubbleWorkspace}", current="${this.currentWorkspacePath}"`);
             if (bubbleWorkspace && this.pathsMatch(bubbleWorkspace, this.currentWorkspacePath)) {
                 return true;
             }
@@ -47,11 +53,13 @@ export class WorkspaceFilter {
         // Fallback to workspaceProjectDir
         if ((bubble as any).workspaceProjectDir) {
             const bubbleWorkspace = this.normalizePath((bubble as any).workspaceProjectDir);
+            console.log(`[WorkspaceFilter] ${composerName}: workspaceProjectDir="${bubbleWorkspace}", current="${this.currentWorkspacePath}"`);
             if (bubbleWorkspace && this.pathsMatch(bubbleWorkspace, this.currentWorkspacePath)) {
                 return true;
             }
         }
 
+        console.log(`[WorkspaceFilter] ✗ ${composerName}: No workspace info in bubble`);
         return false;
     }
 
@@ -61,10 +69,18 @@ export class WorkspaceFilter {
     private uriToPath(uri: string): string {
         try {
             const decoded = decodeURIComponent(uri);
-            let fsPath = decoded.replace(/^file:\/\/\//, '');
-
-            // Windows drive letters are URL encoded (e.g., d%3A)
+            let fsPath = decoded;
+            
+            // Remove file:// prefix
+            if (fsPath.startsWith('file://')) {
+                fsPath = fsPath.substring(7); // Remove 'file://'
+            }
+            
+            // On Windows, file:///C:/path -> /C:/path, we need to remove the leading /
+            // On macOS/Linux, file:///Users/... -> /Users/..., keep the leading /
             if (process.platform === 'win32') {
+                // Remove leading / before drive letter (e.g., /C: -> C:)
+                fsPath = fsPath.replace(/^\/([A-Za-z]:)/, '$1');
                 fsPath = fsPath.replace(/%3A/gi, ':');
             }
 

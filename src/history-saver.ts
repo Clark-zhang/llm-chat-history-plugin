@@ -33,12 +33,15 @@ export class HistorySaver {
 
         if (shouldSave) {
             await fs.writeFile(filepath, markdown, 'utf-8');
+            console.log(`[HistorySaver] ✓ Saved: ${filepath}`);
             
             // 上报文件保存事件（仅登录用户）
             trackEventIfLoggedIn(TelemetryEvents.FILE_SAVED_LOCALLY, {
                 source: this.source,
                 session_id: composer.composerId,
             });
+        } else {
+            console.log(`[HistorySaver] ⊘ Skipped (unchanged): ${filepath}`);
         }
 
         return filepath;
