@@ -196,7 +196,9 @@ export class DatabaseWatcher {
             const composers = reader.getAllComposers();
 
             console.log(`Found ${composers.length} composers`);
+            console.log(`[WorkspaceFilter] Current workspace: ${this.workspaceRoot}`);
 
+            let skippedCount = 0;
             for (const composer of composers) {
                 // 只处理属于当前工作区的对话
                 const belongsToWorkspace = this.workspaceFilter.belongsToCurrentWorkspace(
@@ -204,8 +206,10 @@ export class DatabaseWatcher {
                     reader
                 );
                 if (!belongsToWorkspace) {
+                    skippedCount++;
                     continue;
                 }
+                console.log(`[WorkspaceFilter] ✓ Matched composer: ${composer.name || composer.composerId}`);
 
                 // 获取 bubble IDs
                 const bubbleIds = (composer.fullConversationHeadersOnly || [])
@@ -245,6 +249,9 @@ export class DatabaseWatcher {
 
             // 更新缓存
             this.cachedSessions = sessionsToCache;
+            
+            console.log(`[WorkspaceFilter] Skipped ${skippedCount} composers (not in current workspace)`);
+            console.log(`[WorkspaceFilter] Matched ${sessionsToCache.length} composers for saving`);
 
             // 更新侧边栏统计信息
             const automationProvider = (global as any).__automationStatusProvider;
