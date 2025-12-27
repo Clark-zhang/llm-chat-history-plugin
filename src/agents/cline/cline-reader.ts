@@ -239,28 +239,13 @@ export function getClineStoragePath(): string {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
 
     // 检测当前运行环境
-    // 优先检查VSCode环境变量，然后检查Cursor环境变量
-    const isVSCode = process.env.VSCODE_CWD !== undefined || process.env.VSCODE_PID !== undefined;
-    const isCursor = process.env.CURSOR_PID !== undefined || process.env.CURSOR_DATA_FOLDER !== undefined;
-
-    // 默认使用VSCode路径，因为cline插件主要在VSCode中运行
-    let appName = 'Code'; // VSCode
-
-    // 如果明确检测到Cursor环境，使用Cursor路径
-    if (isCursor && !isVSCode) {
-        appName = 'Cursor';
-    }
+    // 注意：Cursor 基于 VS Code，所以 VSCODE_* 环境变量在 Cursor 中也存在
+    // 因此需要优先检测 Cursor 特有的环境变量和可执行路径
+    const appName = detectIDEType();
     
-    console.log('[DEBUG] getClineStoragePath:');
-    console.log('  - platform:', platform);
-    console.log('  - homeDir:', homeDir);
-    console.log('  - VSCODE_CWD:', process.env.VSCODE_CWD);
-    console.log('  - VSCODE_PID:', process.env.VSCODE_PID);
-    console.log('  - CURSOR_PID:', process.env.CURSOR_PID);
-    console.log('  - CURSOR_DATA_FOLDER:', process.env.CURSOR_DATA_FOLDER);
-    console.log('  - isVSCode:', isVSCode);
-    console.log('  - isCursor:', isCursor);
-    console.log('  - appName:', appName);
+    console.log('[Cline] getClineStoragePath:');
+    console.log('[Cline]   - platform:', platform);
+    console.log('[Cline]   - appName:', appName);
     
     let storagePath: string;
     
@@ -282,7 +267,33 @@ export function getClineStoragePath(): string {
         );
     }
     
-    
+    console.log('[Cline]   - storagePath:', storagePath);
     return storagePath;
+}
+
+/**
+ * 检测当前 IDE 类型
+ * 优先检测 Cursor（因为 Cursor 基于 VS Code，会同时设置 VS Code 的环境变量）
+ */
+function detectIDEType(): 'Code' | 'Cursor' {
+    // 方法1：检查可执行路径（最可靠）
+    const execPath = process.execPath?.toLowerCase() || '';
+    if (execPath.includes('cursor')) {
+        return 'Cursor';
+    }
+    
+    // 方法2：检查 Cursor 特有的环境变量
+    if (process.env.CURSOR_PID || process.env.CURSOR_DATA_FOLDER) {
+        return 'Cursor';
+    }
+    
+    // 方法3：检查当前工作目录
+    const cwd = process.cwd()?.toLowerCase() || '';
+    if (cwd.includes('cursor')) {
+        return 'Cursor';
+    }
+    
+    // 默认使用 VS Code
+    return 'Code';
 }
 

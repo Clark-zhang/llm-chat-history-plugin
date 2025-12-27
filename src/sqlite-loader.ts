@@ -157,69 +157,89 @@ export class SqliteLoader {
 
         console.log(`Detected IDE: ${ideType}, Electron version: ${electronVersion}`);
 
-        // IDE-specific version preferences
+        // IDE-specific version preferences (minimal set: only 37 and 39)
         if (ideType === 'cursor') {
             // Cursor 2.x typically uses Electron 37.x
             return [
-                electronVersion,  // Detected version first
                 '37.0.0',        // Electron 37 (Cursor 2.x stable)
-                '36.0.0',        // Electron 36
-                '38.0.0',        // Electron 38 (fallback)
                 '39.0.0',        // Electron 39 (fallback)
-                '35.0.0',        // Electron 35
             ];
         } else {
             // VS Code versions (typically newer)
             return [
-                electronVersion,  // Detected version first
                 '39.0.0',        // Electron 39 (VS Code 1.93+)
-                '38.0.0',        // Electron 38
-                '37.0.0',        // Electron 37
-                '36.0.0',        // Electron 36
-                '35.0.0',        // Electron 35
-                '34.0.0',        // Electron 34
+                '37.0.0',        // Electron 37 (fallback)
             ];
         }
     }
 
     /**
-     * Try to use pre-packaged binary for the current Electron version
+     * Try to use pre-packaged binary for the current Electron version and platform
      */
     private async downloadBinary(electronVersion: string): Promise<void> {
         // Get IDE-specific recommended versions
         const versionsToTry = this.getRecommendedVersions(electronVersion);
+        const platform = process.platform; // 'win32', 'darwin', 'linux'
+        const arch = process.arch; // 'x64', 'arm64', 'ia32'
 
-        // Change to better-sqlite3 directory
-        const originalCwd = process.cwd();
-        process.chdir(this.sqlitePath);
+        const binaryDir = path.join(this.sqlitePath, 'build', 'Release');
+        const targetPath = path.join(binaryDir, 'better_sqlite3.node');
 
-        try {
-            // 首先尝试使用预打包的版本化二进制文件
-            for (const version of versionsToTry) {
-                const versionedBinary = path.join('build', 'Release', `better_sqlite3-${version}.node`);
-                if (fs.existsSync(versionedBinary)) {
-                    console.log(`✅ Using pre-packaged binary for Electron ${version}`);
-                    // Copy the versioned binary to the expected location
-                    const targetPath = path.join('build', 'Release', 'better_sqlite3.node');
-                    fs.copyFileSync(versionedBinary, targetPath);
-                    return;
-                }
-            }
+        console.log(`Looking for binary: platform=${platform}, arch=${arch}`);
 
-            console.log('No pre-packaged binaries found for current Electron version');
+        // Try to find a matching binary for current platform/arch and electron version
+        for (const version of versionsToTry) {
+            // New naming convention: better_sqlite3-electron-{version}-{platform}-{arch}.node
+            const binaryName = `better_sqlite3-electron-${version}-${platform}-${arch}.node`;
+            const binaryPath = path.join(binaryDir, binaryName);
 
-            // 如果没有任何可用的二进制文件，使用默认的
-            const defaultBinary = path.join('build', 'Release', 'better_sqlite3.node');
-            if (fs.existsSync(defaultBinary)) {
-                console.log('Using default binary as fallback');
+            if (fs.existsSync(binaryPath)) {
+                console.log(`✅ Using pre-packaged binary: ${binaryName}`);
+                fs.copyFileSync(binaryPath, targetPath);
                 return;
             }
-
-            throw new Error('No compatible SQLite3 binary found. Please reinstall the extension.');
-
-        } finally {
-            process.chdir(originalCwd);
         }
+
+        // Fallback: try old naming convention (backwards compatibility)
+        for (const version of versionsToTry) {
+            const oldBinaryName = `better_sqlite3-${version}.node`;
+            const oldBinaryPath = path.join(binaryDir, oldBinaryName);
+
+            if (fs.existsSync(oldBinaryPath)) {
+                console.log(`✅ Using legacy pre-packaged binary: ${oldBinaryName}`);
+                fs.copyFileSync(oldBinaryPath, targetPath);
+                return;
+            }
+        }
+
+        // Try to find ANY binary for the current platform/arch
+        if (fs.existsSync(binaryDir)) {
+            const files = fs.readdirSync(binaryDir);
+            const platformBinaries = files.filter(f =>
+                f.endsWith('.node') &&
+                f.includes(`-${platform}-${arch}.node`)
+            ).sort().reverse(); // Prefer newer versions
+
+            if (platformBinaries.length > 0) {
+                const bestMatch = platformBinaries[0];
+                console.log(`✅ Using best available platform binary: ${bestMatch}`);
+                fs.copyFileSync(path.join(binaryDir, bestMatch), targetPath);
+                return;
+            }
+        }
+
+        console.log('No pre-packaged binaries found for current platform/architecture');
+
+        // If the default binary exists, check if it's compatible
+        if (fs.existsSync(targetPath)) {
+            console.log('Using existing default binary as fallback');
+            return;
+        }
+
+        throw new Error(
+            `No compatible SQLite3 binary found for ${platform}-${arch}. ` +
+            `Please reinstall the extension or report this issue.`
+        );
     }
 
     /**
