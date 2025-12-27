@@ -75,18 +75,21 @@ export class WorkspaceFilter {
     }
 
     /**
-     * Normalize paths for reliable comparison.
+     * Normalize paths for reliable comparison (cross-platform compatible).
+     * - Convert backslashes to forward slashes
+     * - Convert to lowercase (for case-insensitive comparison across platforms)
+     * - Remove trailing slash
      */
     private normalizePath(filepath: string): string {
         if (!filepath) return '';
 
+        // 统一使用正斜杠
         let normalized = filepath.replace(/\\/g, '/');
 
-        if (process.platform === 'win32') {
-            normalized = normalized.toLowerCase();
-        }
+        // 始终转换为小写（跨平台兼容：Windows 数据在 Linux 上也能正确比较）
+        normalized = normalized.toLowerCase();
 
-        // remove trailing slash
+        // 移除末尾斜杠
         normalized = normalized.replace(/\/$/, '');
 
         return normalized;

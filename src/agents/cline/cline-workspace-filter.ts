@@ -3,7 +3,6 @@
  * 判断任务是否属于当前工作区
  */
 
-import * as path from 'path';
 import { ClineTask } from './cline-types';
 
 export class ClineWorkspaceFilter {
@@ -31,9 +30,12 @@ export class ClineWorkspaceFilter {
                 return true;
             }
 
-            // 检查命令执行路径
-            if (msg.command && typeof msg.command === 'string' && msg.command.includes(this.workspaceRoot)) {
-                return true;
+            // 检查命令执行路径（使用规范化路径比较）
+            if (msg.command && typeof msg.command === 'string') {
+                const normalizedCommand = this.normalizePath(msg.command);
+                if (normalizedCommand.includes(this.workspaceRoot)) {
+                    return true;
+                }
             }
         }
 
@@ -54,26 +56,31 @@ export class ClineWorkspaceFilter {
             return true;
         }
         
-        // 检查是否为子路径
-        return normalizedTarget.startsWith(normalizedBase + path.sep);
+        // 检查是否为子路径（使用统一的正斜杠）
+        return normalizedTarget.startsWith(normalizedBase + '/');
     }
     
     /**
-     * 规范化路径
+     * 规范化路径（跨平台兼容）：
+     * - 将反斜杠转换为正斜杠
+     * - 转换为小写（用于比较）
+     * - 移除末尾斜杠
      */
     private normalizePath(p: string): string {
-        // 转换为绝对路径并规范化
-        let normalized = path.resolve(p);
+        if (!p) return '';
         
-        // 统一路径分隔符（Windows）
-        normalized = normalized.replace(/\\/g, '/');
+        // 统一使用正斜杠
+        let normalized = p.replace(/\\/g, '/');
+        
+        // 转换为小写以便比较
+        normalized = normalized.toLowerCase();
         
         // 移除尾部斜杠
         if (normalized.endsWith('/') && normalized.length > 1) {
             normalized = normalized.slice(0, -1);
         }
         
-        return normalized.toLowerCase();
+        return normalized;
     }
 }
 

@@ -140,8 +140,8 @@ export class BlackboxReader {
                         // 在请求文本中查找工作区路径
                         const cwdMatch = parsed.request.match(/Current Working Directory \(([^)]+)\)/);
                         if (cwdMatch && cwdMatch[1]) {
-                            // 转换路径格式：d:/Projects/fang -> d:\Projects\fang
-                            return cwdMatch[1].replace(/\//g, '\\');
+                            // 保持原始路径格式，不做转换（让 workspace filter 处理跨平台兼容性）
+                            return cwdMatch[1];
                         }
                     }
                 } catch (error) {
@@ -223,19 +223,48 @@ export function getBlackboxStoragePath(): string {
     const platform = process.platform;
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
 
-    const isVSCode = process.env.VSCODE_CWD !== undefined || process.env.VSCODE_PID !== undefined;
-    const isCursor = process.env.CURSOR_PID !== undefined || process.env.CURSOR_DATA_FOLDER !== undefined;
+    // 检测当前 IDE 类型（优先检测 Cursor）
+    const appName = detectIDEType();
+    
+    console.log('[BlackboxAI] getBlackboxStoragePath:');
+    console.log('[BlackboxAI]   - platform:', platform);
+    console.log('[BlackboxAI]   - appName:', appName);
 
-    let appName = 'Code';
-    if (isCursor && !isVSCode) {
-        appName = 'Cursor';
-    }
-
+    let storagePath: string;
     if (platform === 'win32') {
-        return path.join(homeDir, `AppData/Roaming/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
+        storagePath = path.join(homeDir, `AppData/Roaming/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
     } else if (platform === 'darwin') {
-        return path.join(homeDir, `Library/Application Support/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
+        storagePath = path.join(homeDir, `Library/Application Support/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
     } else {
-        return path.join(homeDir, `.config/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
+        storagePath = path.join(homeDir, `.config/${appName}/User/globalStorage/blackboxapp.blackboxagent`);
     }
+    
+    console.log('[BlackboxAI]   - storagePath:', storagePath);
+    return storagePath;
+}
+
+/**
+ * 检测当前 IDE 类型
+ * 优先检测 Cursor（因为 Cursor 基于 VS Code，会同时设置 VS Code 的环境变量）
+ */
+function detectIDEType(): 'Code' | 'Cursor' {
+    // 方法1：检查可执行路径（最可靠）
+    const execPath = process.execPath?.toLowerCase() || '';
+    if (execPath.includes('cursor')) {
+        return 'Cursor';
+    }
+    
+    // 方法2：检查 Cursor 特有的环境变量
+    if (process.env.CURSOR_PID || process.env.CURSOR_DATA_FOLDER) {
+        return 'Cursor';
+    }
+    
+    // 方法3：检查当前工作目录
+    const cwd = process.cwd()?.toLowerCase() || '';
+    if (cwd.includes('cursor')) {
+        return 'Cursor';
+    }
+    
+    // 默认使用 VS Code
+    return 'Code';
 }
