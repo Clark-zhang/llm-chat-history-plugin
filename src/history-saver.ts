@@ -21,25 +21,44 @@ export class HistorySaver {
      * 保存对话到文件
      */
     async save(composer: ComposerData, markdown: string): Promise<string> {
+        console.log(`[HistorySaver] ========== Starting save ==========`);
+        console.log(`[HistorySaver] History dir: ${this.historyDir}`);
+        console.log(`[HistorySaver] Source: ${this.source}`);
+        console.log(`[HistorySaver] Composer ID: ${composer.composerId}`);
+        console.log(`[HistorySaver] Composer name: ${composer.name || 'untitled'}`);
+        
         // 确保目录存在
-        await fs.mkdir(this.historyDir, { recursive: true });
+        try {
+            await fs.mkdir(this.historyDir, { recursive: true });
+            console.log(`[HistorySaver] Directory ensured: ${this.historyDir}`);
+        } catch (error) {
+            console.error(`[HistorySaver] Failed to create directory: ${error}`);
+            throw error;
+        }
 
         // 生成文件名
         const filename = this.generateFilename(composer);
         const filepath = path.join(this.historyDir, filename);
+        console.log(`[HistorySaver] Target filepath: ${filepath}`);
 
         // 检查是否需要更新
         const shouldSave = await this.shouldSave(filepath, markdown);
+        console.log(`[HistorySaver] Should save: ${shouldSave}`);
 
         if (shouldSave) {
-            await fs.writeFile(filepath, markdown, 'utf-8');
-            console.log(`[HistorySaver] ✓ Saved: ${filepath}`);
-            
-            // 上报文件保存事件（仅登录用户）
-            trackEventIfLoggedIn(TelemetryEvents.FILE_SAVED_LOCALLY, {
-                source: this.source,
-                session_id: composer.composerId,
-            });
+            try {
+                await fs.writeFile(filepath, markdown, 'utf-8');
+                console.log(`[HistorySaver] ✓ Saved successfully: ${filepath}`);
+                
+                // 上报文件保存事件（仅登录用户）
+                trackEventIfLoggedIn(TelemetryEvents.FILE_SAVED_LOCALLY, {
+                    source: this.source,
+                    session_id: composer.composerId,
+                });
+            } catch (error) {
+                console.error(`[HistorySaver] ✗ Failed to save file: ${error}`);
+                throw error;
+            }
         } else {
             console.log(`[HistorySaver] ⊘ Skipped (unchanged): ${filepath}`);
         }

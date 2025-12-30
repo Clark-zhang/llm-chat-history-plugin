@@ -81,13 +81,22 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // 尝试启动 Cursor 监听
     const cursorDbPath = getCursorDatabasePath();
+    console.log('[Init] ========== Checking Cursor database ==========');
+    console.log(`[Init] Cursor database path: ${cursorDbPath}`);
+    console.log(`[Init] Database exists: ${fs.existsSync(cursorDbPath)}`);
+    
     if (fs.existsSync(cursorDbPath)) {
-        console.log('Cursor database found, starting Cursor watcher');
-        const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
-        cursorWatcher.start();
-        watchers.push(cursorWatcher);
+        console.log('[Init] Cursor database found, starting Cursor watcher');
+        try {
+            const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
+            cursorWatcher.start();
+            watchers.push(cursorWatcher);
+            console.log('[Init] Cursor watcher started successfully');
+        } catch (error) {
+            console.error('[Init] Failed to start Cursor watcher:', error);
+        }
     } else {
-        console.log('Cursor database not found:', cursorDbPath);
+        console.log('[Init] Cursor database not found:', cursorDbPath);
     }
     
     // 尝试启动 Cline 监听
@@ -147,12 +156,24 @@ export async function activate(context: vscode.ExtensionContext) {
     const saveCommand = vscode.commands.registerCommand(
         'chatHistory.saveNow',
         () => {
+            console.log('[SaveNow] ========== Manual save triggered ==========');
+            console.log(`[SaveNow] Number of watchers: ${watchers.length}`);
+            console.log(`[SaveNow] Workspace root: ${workspaceRoot}`);
+            
             // 上报手动保存事件
             telemetry.trackEvent(TelemetryEvents.MANUAL_SAVE_TRIGGERED);
             
-            for (const watcher of watchers) {
-                watcher.syncNow();
+            if (watchers.length === 0) {
+                console.error('[SaveNow] ERROR: No watchers available!');
+                vscode.window.showWarningMessage('No chat history sources found. Check Developer Console for details.');
+                return;
             }
+            
+            for (let i = 0; i < watchers.length; i++) {
+                console.log(`[SaveNow] Triggering syncNow for watcher ${i + 1}/${watchers.length}`);
+                watchers[i].syncNow();
+            }
+            console.log('[SaveNow] ========== Manual save completed ==========');
             vscode.window.showInformationMessage(t('info.saved'));
         }
     );

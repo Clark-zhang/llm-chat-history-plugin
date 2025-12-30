@@ -10,6 +10,7 @@ export class CursorDatabaseReader {
     private db: Database.Database;
 
     constructor(dbPath: string) {
+        console.log(`[CursorDatabaseReader] Opening database: ${dbPath}`);
         // 只读模式 + WAL 模式
         this.db = new Database(dbPath, {
             readonly: true,
@@ -18,12 +19,14 @@ export class CursorDatabaseReader {
 
         // 设置 WAL 模式
         this.db.pragma('journal_mode = WAL');
+        console.log('[CursorDatabaseReader] Database opened successfully');
     }
 
     /**
      * 获取所有 Composer
      */
     getAllComposers(): ComposerData[] {
+        console.log('[CursorDatabaseReader] Querying all composers...');
         const stmt = this.db.prepare(`
             SELECT key, value
             FROM cursorDiskKV
@@ -31,6 +34,7 @@ export class CursorDatabaseReader {
         `);
 
         const rows = stmt.all() as DatabaseRow[];
+        console.log(`[CursorDatabaseReader] Found ${rows.length} raw composer rows`);
         const composers: ComposerData[] = [];
 
         for (const row of rows) {
@@ -42,10 +46,11 @@ export class CursorDatabaseReader {
                 const data = JSON.parse(valueStr) as ComposerData;
                 composers.push(data);
             } catch (error) {
-                console.error('Failed to parse composer:', error);
+                console.error('[CursorDatabaseReader] Failed to parse composer:', error);
             }
         }
 
+        console.log(`[CursorDatabaseReader] Successfully parsed ${composers.length} composers`);
         return composers;
     }
 
