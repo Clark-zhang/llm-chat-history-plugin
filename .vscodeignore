@@ -21,10 +21,11 @@ node_modules/**/.github/**
 !README.md
 !QUICK_FIX.md
 
-# Build scripts (keep setup-sqlite.js for potential manual use)
+# Build scripts
 verify-setup.js
 obfuscate.js
 fix-native-module.js
+setup-sqlite.js
 scripts/**
 search-codegeex-data.js
 
