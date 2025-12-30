@@ -214,8 +214,9 @@
     "rebuild-native": "npm run download-all-binaries && npx electron-rebuild -f -w better-sqlite3",
     "verify": "node verify-setup.js",
     "fix": "node fix-native-module.js",
-    "package": "npm run build && npx vsce package",
-    "package:test": "node scripts/package-test.js"
+    "package": "node scripts/package-release.js",
+    "package:dev": "node scripts/package-test.js",
+    "publish": "node scripts/package-publish.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",

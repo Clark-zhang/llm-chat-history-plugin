@@ -698,31 +698,22 @@ npm run build
 # 3. 检查混淆效果
 Get-Content dist\extension.js -Head 30
 
-# 4. 打包
+# 4. 打包 & 发布
 
-## 4.1 打包生产版本
-```bash
-vsce package --allow-missing-repository
-```
+| 场景 | 命令 | 说明 |
+|------|------|------|
+| 打正式包 | `npm run package` | 隐藏 debug 配置，用于发布 |
+| 打测试包 | `npm run package:dev` | 含 debug 配置，默认开启 debugMode |
+| 发布市场 | `npm run publish` | 打正式包并发布到 Marketplace |
 
-## 4.2 打包测试版本
-```bash
-# 自动打包测试版（debugMode 默认开启）
-npm run package:test
-```
+**正式包特点：**
+- 不包含 `debugMode` / `debugServerUrl` 配置项
+- 用户无法看到或修改 debug 相关设置
 
-测试版特点：
-- 版本号自动添加 `-test` 后缀（例如 0.3.0-test）
-- `debugMode` 默认为 `true`
-- 自动连接到本地服务器 `http://192.168.56.101:9999`
-- `cloudSync.enabled` 仍需用户手动启用
+**测试包特点：**
+- 版本号自动添加 `-test` 后缀（例如 0.3.5-test）
+- `debugMode` 默认为 `true`，自动连接本地服务器
 - 打包完成后自动恢复原始配置
-
-# 5. 安装测试
-# 在 VS Code 中安装并测试所有功能
-
-# 发布
-vsce publish --allow-missing-repository
 
 
 # 6. 确认源码未泄露
