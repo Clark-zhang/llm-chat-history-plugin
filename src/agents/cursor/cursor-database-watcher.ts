@@ -122,17 +122,23 @@ export class DatabaseWatcher {
      * 立即执行本地同步
      */
     syncNow(): void {
+        console.log('[Cursor:syncNow] ========== Starting sync ==========');
+        console.log(`[Cursor:syncNow] Database path: ${this.dbPath}`);
+        console.log(`[Cursor:syncNow] Workspace root: ${this.workspaceRoot}`);
+        
         const now = Date.now();
 
         // 避免过于频繁的同步
         if (now - this.lastLocalSync < 1000) {
+            console.log('[Cursor:syncNow] Skipped: Too frequent (< 1s since last sync)');
             return;
         }
 
         this.lastLocalSync = now;
 
         this.performLocalSync().catch(error => {
-            console.error('Local sync failed:', error);
+            console.error('[Cursor:syncNow] Local sync failed:', error);
+            console.error('[Cursor:syncNow] Error stack:', error instanceof Error ? error.stack : 'N/A');
         });
     }
 
@@ -158,30 +164,36 @@ export class DatabaseWatcher {
      * 执行本地同步 - 保存到本地 Markdown 文件
      */
     private async performLocalSync(): Promise<void> {
+        console.log('[Cursor:performLocalSync] ========== Starting local sync ==========');
         let reader: CursorDatabaseReader;
 
         try {
             // 首先尝试创建数据库读取器
+            console.log('[Cursor:performLocalSync] Creating database reader...');
             reader = new CursorDatabaseReader(this.dbPath);
+            console.log('[Cursor:performLocalSync] Database reader created successfully');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('[Cursor:performLocalSync] Failed to create database reader:', errorMessage);
 
             // 检查是否是 SQLite3 兼容性问题
             if (errorMessage.includes('NODE_MODULE_VERSION') ||
                 errorMessage.includes('SQLITE_COMPATIBILITY_ERROR') ||
                 errorMessage.includes('compiled against a different Node.js version')) {
 
-                console.log('Detected SQLite3 compatibility issue, attempting to fix...');
+                console.log('[Cursor:performLocalSync] Detected SQLite3 compatibility issue, attempting to fix...');
 
                 // 尝试重新加载 SQLite3
                 const sqliteLoader = new SqliteLoader(this.extensionPath);
                 const sqliteReady = await sqliteLoader.ensureLoaded();
 
                 if (!sqliteReady) {
+                    console.error('[Cursor:performLocalSync] Failed to load compatible SQLite3 binary');
                     throw new Error('Failed to load compatible SQLite3 binary. Please check the extension logs for more details.');
                 }
 
                 // 重新尝试创建数据库读取器
+                console.log('[Cursor:performLocalSync] Retrying database reader creation...');
                 reader = new CursorDatabaseReader(this.dbPath);
             } else {
                 throw error;
@@ -193,49 +205,71 @@ export class DatabaseWatcher {
 
         try {
             // 获取所有 composer
+            console.log('[Cursor:performLocalSync] Fetching all composers from database...');
             const composers = reader.getAllComposers();
 
-            console.log(`Found ${composers.length} composers`);
-            console.log(`[WorkspaceFilter] Current workspace: ${this.workspaceRoot}`);
+            console.log(`[Cursor:performLocalSync] Found ${composers.length} composers`);
+            console.log(`[Cursor:performLocalSync] Current workspace: ${this.workspaceRoot}`);
+
+            if (composers.length === 0) {
+                console.log('[Cursor:performLocalSync] No composers found in database. Check if Cursor has chat history.');
+            }
 
             let skippedCount = 0;
+            let processedCount = 0;
             for (const composer of composers) {
+                console.log(`[Cursor:performLocalSync] Processing composer: ${composer.name || composer.composerId}`);
+                
                 // 只处理属于当前工作区的对话
                 const belongsToWorkspace = this.workspaceFilter.belongsToCurrentWorkspace(
                     composer,
                     reader
                 );
                 if (!belongsToWorkspace) {
+                    console.log(`[Cursor:performLocalSync] Skipped (not in workspace): ${composer.name || composer.composerId}`);
                     skippedCount++;
                     continue;
                 }
-                console.log(`[WorkspaceFilter] ✓ Matched composer: ${composer.name || composer.composerId}`);
+                console.log(`[Cursor:performLocalSync] ✓ Matched composer: ${composer.name || composer.composerId}`);
 
                 // 获取 bubble IDs
                 const bubbleIds = (composer.fullConversationHeadersOnly || [])
                     .map(h => h.bubbleId);
 
-                if (bubbleIds.length === 0) continue;
+                console.log(`[Cursor:performLocalSync] Bubble IDs count: ${bubbleIds.length}`);
+                if (bubbleIds.length === 0) {
+                    console.log('[Cursor:performLocalSync] Skipped: No bubble IDs');
+                    continue;
+                }
 
                 // 获取 bubbles
                 const bubbles = reader.getComposerBubbles(composer.composerId, bubbleIds);
+                console.log(`[Cursor:performLocalSync] Bubbles retrieved: ${bubbles.length}`);
 
                 // 构建对话
                 const builder = new ConversationBuilder(this.t);
                 const messages = builder.buildConversation(composer, bubbles);
+                console.log(`[Cursor:performLocalSync] Messages built: ${messages.length}`);
 
-                if (messages.length === 0) continue;
+                if (messages.length === 0) {
+                    console.log('[Cursor:performLocalSync] Skipped: No messages');
+                    continue;
+                }
 
                 // 生成 Markdown
                 const generator = new MarkdownGenerator(this.t);
                 const markdown = generator.generate(composer, messages);
+                console.log(`[Cursor:performLocalSync] Markdown generated: ${markdown.length} chars`);
 
                 // 保存到本地
                 const config = vscode.workspace.getConfiguration('chatHistory');
                 const outputDir = config.get<string>('outputDirectory', '.llm-chat-history');
+                console.log(`[Cursor:performLocalSync] Output directory: ${outputDir}`);
 
                 const saver = new HistorySaver(this.workspaceRoot, outputDir, 'cursor');
+                console.log(`[Cursor:performLocalSync] Saving to: ${this.workspaceRoot}/${outputDir}`);
                 await saver.save(composer, markdown);
+                processedCount++;
 
                 // 缓存会话数据供云端同步使用
                 sessionsToCache.push({
@@ -250,8 +284,11 @@ export class DatabaseWatcher {
             // 更新缓存
             this.cachedSessions = sessionsToCache;
             
-            console.log(`[WorkspaceFilter] Skipped ${skippedCount} composers (not in current workspace)`);
-            console.log(`[WorkspaceFilter] Matched ${sessionsToCache.length} composers for saving`);
+            console.log('[Cursor:performLocalSync] ========== Summary ==========');
+            console.log(`[Cursor:performLocalSync] Total composers: ${composers.length}`);
+            console.log(`[Cursor:performLocalSync] Skipped (not in workspace): ${skippedCount}`);
+            console.log(`[Cursor:performLocalSync] Processed and saved: ${processedCount}`);
+            console.log(`[Cursor:performLocalSync] Cached for cloud: ${sessionsToCache.length}`);
 
             // 更新侧边栏统计信息
             const automationProvider = (global as any).__automationStatusProvider;
@@ -260,8 +297,11 @@ export class DatabaseWatcher {
                 const timeStr = now.toLocaleString();
                 automationProvider.updateStats(timeStr, composers.length);
             }
+            
+            console.log('[Cursor:performLocalSync] ========== Local sync completed ==========');
         } finally {
             reader.close();
+            console.log('[Cursor:performLocalSync] Database connection closed');
         }
     }
 
