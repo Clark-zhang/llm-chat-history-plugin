@@ -90,6 +90,7 @@ export class TelemetryManager {
     private static readonly ANONYMOUS_ID_KEY = 'telemetry.anonymousId';
     private static readonly FIRST_INSTALL_KEY = 'telemetry.firstInstallTime';
     private static readonly OFFICIAL_SERVER_URL = 'https://llm-chat-history.com';
+    private static readonly TOKEN_KEY = 'cloudSync.token';
 
     // 配置
     private static readonly FLUSH_INTERVAL = 30000; // 30秒自动刷新
@@ -190,6 +191,13 @@ export class TelemetryManager {
     }
 
     /**
+     * 从已有的 CloudSyncManager 获取 token
+     */
+    private getTokenFromCloudSync(): string | undefined {
+        return this.context.globalState.get<string>(TelemetryManager.TOKEN_KEY);
+    }
+
+    /**
      * 上报事件
      */
     async trackEvent(eventName: TelemetryEventName, eventData?: Record<string, any>): Promise<void> {
@@ -234,6 +242,9 @@ export class TelemetryManager {
         // 更新用户 ID
         this.telemetryContext.user_id = this.getUserIdFromCloudSync();
 
+        // 获取 token（如果有 user_id，需要 token 来验证身份）
+        const token = this.telemetryContext.user_id ? this.getTokenFromCloudSync() : undefined;
+
         const payload = {
             ...this.telemetryContext,
             event_name: eventName,
@@ -242,7 +253,7 @@ export class TelemetryManager {
         };
 
         try {
-            await this.request('POST', '/api/telemetry/event', payload);
+            await this.request('POST', '/api/telemetry/event', payload, token);
             console.log('[Telemetry] Event sent immediately:', eventName);
         } catch (error) {
             console.error('[Telemetry] Failed to send event:', eventName, error);
@@ -260,6 +271,9 @@ export class TelemetryManager {
         // 更新用户 ID
         this.telemetryContext.user_id = this.getUserIdFromCloudSync();
 
+        // 获取 token（如果有 user_id，需要 token 来验证身份）
+        const token = this.telemetryContext.user_id ? this.getTokenFromCloudSync() : undefined;
+
         const events = [...this.eventQueue];
         this.eventQueue = [];
 
@@ -273,7 +287,7 @@ export class TelemetryManager {
         };
 
         try {
-            await this.request('POST', '/api/telemetry/events', payload);
+            await this.request('POST', '/api/telemetry/events', payload, token);
             console.log('[Telemetry] Batch sent:', events.length, 'events');
         } catch (error) {
             // 发送失败，重新加入队列
@@ -341,7 +355,7 @@ export class TelemetryManager {
     /**
      * 发送 HTTP 请求
      */
-    private async request<T>(method: string, path: string, body?: any): Promise<T> {
+    private async request<T>(method: string, path: string, body?: any, token?: string): Promise<T> {
         const serverUrl = this.getServerUrl();
         const url = new URL(path, serverUrl);
         const isHttps = url.protocol === 'https:';
@@ -350,6 +364,11 @@ export class TelemetryManager {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
         };
+
+        // 如果有 token，添加 Authorization header
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
 
         const requestBody = body ? JSON.stringify(body) : undefined;
 
