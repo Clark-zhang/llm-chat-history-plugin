@@ -2,6 +2,12 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.3.7] - 2026-01-02
+
+### Changed
+- Refactored telemetry request handling to improve token management
+- Added token handling for telemetry requests
+
 ## [0.3.6] - 2025-12-30
 
 ### Fixed
