@@ -1,4 +1,4 @@
-# 🚀 AI Chat History Saver
+# 🚀 LLM Chat History Saver
 
 > 💡 **AI talks too fast to keep up?** Explore your AI conversations in a better way - Zero config, automatic saving, cloud sync, workspace management
 
