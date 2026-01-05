@@ -18,6 +18,7 @@ import { showSearchInterface } from './chat-search';
 import { CloudSyncManager } from './cloud/cloud-sync';
 import { AutomationStatusProvider, AccountStatusProvider } from './sidebar/status-view';
 import { TelemetryManager, TelemetryEvents } from './telemetry/telemetry';
+import { GitHubLinkManager } from './git/github-link-manager';
 
 /**
  * 扩展激活时调用
@@ -370,6 +371,19 @@ export async function activate(context: vscode.ExtensionContext) {
     // 导出 cloudSync 供 watcher 使用
     (global as any).__cloudSyncManager = cloudSync;
 
+    // 初始化 GitHub Link Manager（Git 事件追踪）
+    const githubLinkManager = new GitHubLinkManager(context);
+    githubLinkManager.init().then(success => {
+        if (success) {
+            console.log('[GitHubLink] Git watcher initialized, watching', githubLinkManager.getWatchedReposCount(), 'repositories');
+        } else {
+            console.log('[GitHubLink] Git watcher not available (Git extension not found)');
+        }
+    });
+
+    // 导出 githubLinkManager 供其他模块使用
+    (global as any).__githubLinkManager = githubLinkManager;
+
     context.subscriptions.push(
         saveCommand, 
         searchCommand, 
@@ -379,6 +393,7 @@ export async function activate(context: vscode.ExtensionContext) {
         cloudSyncCommand,
         refreshStatusCommand,
         openSettingsCommand,
+        githubLinkManager,
         {
             dispose: () => {
                 for (const watcher of watchers) {
