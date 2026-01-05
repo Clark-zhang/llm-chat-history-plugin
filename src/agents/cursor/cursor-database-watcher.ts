@@ -284,6 +284,17 @@ export class DatabaseWatcher {
             // 更新缓存
             this.cachedSessions = sessionsToCache;
             
+            // 更新 GitHub Link Manager 的当前 session（用于 Git Commit Link 功能）
+            if (sessionsToCache.length > 0) {
+                const githubLinkManager = (global as any).__githubLinkManager;
+                if (githubLinkManager) {
+                    // 使用最后处理的 session（通常是最近活跃的）
+                    const lastSession = sessionsToCache[sessionsToCache.length - 1];
+                    githubLinkManager.setCurrentSession(lastSession.session_id, lastSession.workspace_path);
+                    console.log(`[Cursor:performLocalSync] Updated GitHub Link session: ${lastSession.session_id}`);
+                }
+            }
+            
             console.log('[Cursor:performLocalSync] ========== Summary ==========');
             console.log(`[Cursor:performLocalSync] Total composers: ${composers.length}`);
             console.log(`[Cursor:performLocalSync] Skipped (not in workspace): ${skippedCount}`);

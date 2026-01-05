@@ -12,26 +12,34 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 
 export interface SessionInfo {
     sessionId: string;
-    workspacePath: string;
     url: string;
     timestamp: number;
 }
 
 const HOOK_SCRIPT_NAME = 'prepare-commit-msg';
-const SESSION_FILE_NAME = '.llm-chat-history-session';
+const CONFIG_DIR_NAME = 'config';
+const SESSION_FILE_NAME = 'current-session.json';
 
 // Session expiry time: 30 minutes
 const SESSION_EXPIRY_MS = 30 * 60 * 1000;
 
 /**
- * Get the path to the session info file
+ * Get the path to the session config directory for a workspace
+ * Path: <workspace>/.llm-chat-history/config/
  */
-export function getSessionFilePath(): string {
-    return path.join(os.homedir(), SESSION_FILE_NAME);
+export function getConfigDir(workspacePath: string): string {
+    return path.join(workspacePath, '.llm-chat-history', CONFIG_DIR_NAME);
+}
+
+/**
+ * Get the path to the session info file for a workspace
+ * Path: <workspace>/.llm-chat-history/config/current-session.json
+ */
+export function getSessionFilePath(workspacePath: string): string {
+    return path.join(getConfigDir(workspacePath), SESSION_FILE_NAME);
 }
 
 /**
@@ -81,19 +89,26 @@ export function isGitCommitLinkEnabled(): boolean {
 
 /**
  * Write current session info to file for IPC with Git hook
+ * Writes to: <workspacePath>/.llm-chat-history/config/current-session.json
  */
 export function writeSessionInfo(sessionId: string, workspacePath: string): void {
     const sessionInfo: SessionInfo = {
         sessionId,
-        workspacePath,
         url: getDashboardUrl(sessionId),
         timestamp: Date.now()
     };
     
     try {
-        const filePath = getSessionFilePath();
+        const configDir = getConfigDir(workspacePath);
+        const filePath = getSessionFilePath(workspacePath);
+        
+        // Ensure config directory exists
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+        
         fs.writeFileSync(filePath, JSON.stringify(sessionInfo, null, 2), 'utf8');
-        console.log('[GitCommitLink] Session info written:', sessionId);
+        console.log('[GitCommitLink] Session info written:', sessionId, 'at', filePath);
     } catch (error) {
         console.error('[GitCommitLink] Failed to write session info:', error);
     }
@@ -102,9 +117,9 @@ export function writeSessionInfo(sessionId: string, workspacePath: string): void
 /**
  * Read current session info from file
  */
-export function readSessionInfo(): SessionInfo | null {
+export function readSessionInfo(workspacePath: string): SessionInfo | null {
     try {
-        const filePath = getSessionFilePath();
+        const filePath = getSessionFilePath(workspacePath);
         if (!fs.existsSync(filePath)) {
             return null;
         }
@@ -115,7 +130,7 @@ export function readSessionInfo(): SessionInfo | null {
         // Check if session is expired
         if (Date.now() - info.timestamp > SESSION_EXPIRY_MS) {
             console.log('[GitCommitLink] Session expired, clearing');
-            clearSessionInfo();
+            clearSessionInfo(workspacePath);
             return null;
         }
         
@@ -129,9 +144,9 @@ export function readSessionInfo(): SessionInfo | null {
 /**
  * Clear session info file
  */
-export function clearSessionInfo(): void {
+export function clearSessionInfo(workspacePath: string): void {
     try {
-        const filePath = getSessionFilePath();
+        const filePath = getSessionFilePath(workspacePath);
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
             console.log('[GitCommitLink] Session info cleared');
@@ -143,9 +158,11 @@ export function clearSessionInfo(): void {
 
 /**
  * Generate the Git hook script content
+ * The hook reads session info from the project's .llm-chat-history/config/current-session.json
  */
 function generateHookScript(): string {
-    const sessionFilePath = getSessionFilePath();
+    // Session file is now relative to the repo root
+    const sessionFileRelPath = `.llm-chat-history/${CONFIG_DIR_NAME}/${SESSION_FILE_NAME}`;
     
     return `#!/bin/bash
 # LLM Chat History - Auto-link AI conversations to commits
@@ -153,7 +170,6 @@ function generateHookScript(): string {
 # Installed by: LLM Chat History VS Code Extension
 # WARNING: Do not edit manually. Re-enable the feature in VS Code settings to update.
 
-SESSION_FILE="${sessionFilePath}"
 COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="$2"
 
@@ -161,6 +177,15 @@ COMMIT_SOURCE="$2"
 if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "squash" ]; then
     exit 0
 fi
+
+# Get the repository root
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$REPO_ROOT" ]; then
+    exit 0
+fi
+
+# Session file is in the project's .llm-chat-history/config/ directory
+SESSION_FILE="$REPO_ROOT/${sessionFileRelPath}"
 
 # Check if session file exists
 if [ ! -f "$SESSION_FILE" ]; then
@@ -172,17 +197,10 @@ SESSION_DATA=$(cat "$SESSION_FILE")
 
 # Extract values using grep and sed
 SESSION_URL=$(echo "$SESSION_DATA" | grep -o '"url"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"url"[[:space:]]*:[[:space:]]*"\\([^"]*\\)"/\\1/')
-WORKSPACE_PATH=$(echo "$SESSION_DATA" | grep -o '"workspacePath"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"workspacePath"[[:space:]]*:[[:space:]]*"\\([^"]*\\)"/\\1/')
 TIMESTAMP=$(echo "$SESSION_DATA" | grep -o '"timestamp"[[:space:]]*:[[:space:]]*[0-9]*' | sed 's/"timestamp"[[:space:]]*:[[:space:]]*//')
 
 # Validate data
-if [ -z "$SESSION_URL" ] || [ -z "$WORKSPACE_PATH" ] || [ -z "$TIMESTAMP" ]; then
-    exit 0
-fi
-
-# Check if we're in the correct workspace
-CURRENT_REPO=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ "$WORKSPACE_PATH" != "$CURRENT_REPO" ]; then
+if [ -z "$SESSION_URL" ] || [ -z "$TIMESTAMP" ]; then
     exit 0
 fi
 
@@ -481,9 +499,9 @@ export class GitCommitLinkManager implements vscode.Disposable {
     private uninstallAllHooks(): void {
         for (const repoPath of this.installedRepos) {
             uninstallHook(repoPath);
+            clearSessionInfo(repoPath);
         }
         this.installedRepos.clear();
-        clearSessionInfo();
     }
     
     /**
@@ -511,21 +529,29 @@ export class GitCommitLinkManager implements vscode.Disposable {
             clearInterval(this.sessionUpdateInterval);
             this.sessionUpdateInterval = undefined;
         }
-        clearSessionInfo();
+        // Clear session files for all tracked repos
+        for (const repoPath of this.installedRepos) {
+            clearSessionInfo(repoPath);
+        }
     }
     
     /**
      * Update current session (called when chat session changes)
      */
     setCurrentSession(sessionId: string | undefined, workspacePath: string | undefined): void {
+        // If workspace changed and had a session, clear the old one
+        if (this.currentWorkspacePath && this.currentWorkspacePath !== workspacePath) {
+            clearSessionInfo(this.currentWorkspacePath);
+        }
+        
         this.currentSessionId = sessionId;
         this.currentWorkspacePath = workspacePath;
         
         if (isGitCommitLinkEnabled() && sessionId && workspacePath) {
             writeSessionInfo(sessionId, workspacePath);
-            console.log('[GitCommitLinkManager] Session updated:', sessionId);
-        } else if (!sessionId) {
-            clearSessionInfo();
+            console.log('[GitCommitLinkManager] Session updated:', sessionId, 'for workspace:', workspacePath);
+        } else if (!sessionId && workspacePath) {
+            clearSessionInfo(workspacePath);
         }
     }
     
