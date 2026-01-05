@@ -9,6 +9,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { URL } from 'url';
 import { GitWatcher, GitEvent } from './git-watcher';
+import { GitCommitLinkManager, isGitCommitLinkEnabled } from './git-commit-link';
 
 export interface GitHubLink {
     id: string;
@@ -48,6 +49,7 @@ export interface GitHubLinkStats {
 
 export class GitHubLinkManager implements vscode.Disposable {
     private gitWatcher: GitWatcher;
+    private commitLinkManager: GitCommitLinkManager;
     private disposables: vscode.Disposable[] = [];
     private static readonly OFFICIAL_SERVER_URL = 'https://llm-chat-history.com';
 
@@ -56,6 +58,9 @@ export class GitHubLinkManager implements vscode.Disposable {
         this.gitWatcher = new GitWatcher({
             onGitEvent: (event) => this.handleGitEvent(event)
         });
+        
+        // Initialize Git Commit Link Manager
+        this.commitLinkManager = new GitCommitLinkManager(context);
     }
 
     /**
@@ -66,7 +71,17 @@ export class GitHubLinkManager implements vscode.Disposable {
         if (success) {
             this.disposables.push(this.gitWatcher);
             console.log('[GitHubLinkManager] Initialized successfully');
+            
+            // Install hooks for newly opened repositories
+            this.gitWatcher.onNewRepository((repoPath: string) => {
+                this.commitLinkManager.installHookForRepo(repoPath);
+            });
         }
+        
+        // Initialize commit link manager (independent of git watcher)
+        await this.commitLinkManager.init();
+        this.disposables.push(this.commitLinkManager);
+        
         return success;
     }
 
@@ -267,8 +282,11 @@ export class GitHubLinkManager implements vscode.Disposable {
     /**
      * Set the current active session for auto-linking
      */
-    setCurrentSession(sessionId?: string): void {
+    setCurrentSession(sessionId?: string, workspacePath?: string): void {
         this.gitWatcher.setCurrentSession(sessionId);
+        
+        // Also update commit link manager for hook-based linking
+        this.commitLinkManager.setCurrentSession(sessionId, workspacePath);
     }
 
     /**

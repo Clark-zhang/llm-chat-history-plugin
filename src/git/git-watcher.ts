@@ -27,6 +27,7 @@ export interface GitEvent {
 
 export interface GitWatcherOptions {
     onGitEvent?: (event: GitEvent) => void;
+    onNewRepository?: (repoPath: string) => void;
 }
 
 export class GitWatcher implements vscode.Disposable {
@@ -34,11 +35,14 @@ export class GitWatcher implements vscode.Disposable {
     private gitApi: any;
     private lastHeadCommit: Map<string, string> = new Map();
     private currentSessionId?: string;
-    private onGitEvent?: (event: GitEvent) => void;
+    private onGitEventCallback?: (event: GitEvent) => void;
+    private onNewRepositoryCallback?: (repoPath: string) => void;
+    private newRepoCallbacks: ((repoPath: string) => void)[] = [];
     private isInitialized = false;
 
     constructor(options?: GitWatcherOptions) {
-        this.onGitEvent = options?.onGitEvent;
+        this.onGitEventCallback = options?.onGitEvent;
+        this.onNewRepositoryCallback = options?.onNewRepository;
     }
 
     /**
@@ -78,8 +82,12 @@ export class GitWatcher implements vscode.Disposable {
             // Watch for new repositories
             this.disposables.push(
                 this.gitApi.onDidOpenRepository((repo: any) => {
-                    console.log('[GitWatcher] New repository opened:', repo.rootUri.fsPath);
+                    const repoPath = repo.rootUri.fsPath;
+                    console.log('[GitWatcher] New repository opened:', repoPath);
                     this.watchRepository(repo);
+                    
+                    // Notify listeners about new repository
+                    this.emitNewRepository(repoPath);
                 })
             );
 
@@ -318,8 +326,27 @@ export class GitWatcher implements vscode.Disposable {
     private emitEvent(event: GitEvent): void {
         console.log('[GitWatcher] Emitting event:', event.eventType, event.commitSha?.substring(0, 7));
         
-        if (this.onGitEvent) {
-            this.onGitEvent(event);
+        if (this.onGitEventCallback) {
+            this.onGitEventCallback(event);
+        }
+    }
+    
+    /**
+     * Register a callback for new repository events
+     */
+    onNewRepository(callback: (repoPath: string) => void): void {
+        this.newRepoCallbacks.push(callback);
+    }
+    
+    /**
+     * Emit new repository event
+     */
+    private emitNewRepository(repoPath: string): void {
+        if (this.onNewRepositoryCallback) {
+            this.onNewRepositoryCallback(repoPath);
+        }
+        for (const callback of this.newRepoCallbacks) {
+            callback(repoPath);
         }
     }
 

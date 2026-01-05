@@ -116,6 +116,11 @@
           "type": "string",
           "default": "http://localhost:9999",
           "description": "Custom server URL for debug mode (only works when debugMode is enabled)"
+        },
+        "chatHistory.gitCommit.linkEnabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Enable Git Commit Linking**\n\nWhen enabled, a link to your AI conversation will be automatically appended to each commit message.\n\n**Example commit message:**\n```\nfix: resolve login bug\n\n🤖 AI: https://llm-chat-history.com/d?s=abc123\n```\n\n⚠️ **Requirements:**\n- You must be logged in to use this feature\n- A Git Hook will be installed in your repository's `.git/hooks/` directory\n- The link URL will match your server configuration (production or debug mode)\n\n💡 This allows you to view the AI conversation directly from GitHub/GitLab commit pages."
         }
       }
     },
