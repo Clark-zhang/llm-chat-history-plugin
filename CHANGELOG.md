@@ -2,6 +2,22 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.4.0] - 2026-01-06
+
+### Added
+- **GitHub Integration**: Link AI conversations with Git commits
+  - Auto-link: Conversations are automatically associated with GitHub commits
+  - Commit message enhancement: Git commits can include LLM Chat History dashboard links (🤖 AI: URL)
+  - Git Hook: Installs `prepare-commit-msg` hook to append conversation URLs to commit messages
+  - View conversation context directly from GitHub/GitLab commit pages
+- **Token & Cost Tracking**: Display token usage and cost estimation in exported markdown
+  - Shows input/output token counts for each conversation
+  - Displays estimated costs for Cline conversations
+
+### Changed
+- Enhanced telemetry request handling with token-based authentication
+- Improved session management for Git commit linking
+
 ## [0.3.7] - 2026-01-02
 
 ### Changed

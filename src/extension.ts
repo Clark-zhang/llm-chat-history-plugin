@@ -18,7 +18,6 @@ import { showSearchInterface } from './chat-search';
 import { CloudSyncManager } from './cloud/cloud-sync';
 import { AutomationStatusProvider, AccountStatusProvider } from './sidebar/status-view';
 import { TelemetryManager, TelemetryEvents } from './telemetry/telemetry';
-import { GitHubLinkManager } from './git/github-link-manager';
 
 /**
  * 扩展激活时调用
@@ -82,22 +81,13 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // 尝试启动 Cursor 监听
     const cursorDbPath = getCursorDatabasePath();
-    console.log('[Init] ========== Checking Cursor database ==========');
-    console.log(`[Init] Cursor database path: ${cursorDbPath}`);
-    console.log(`[Init] Database exists: ${fs.existsSync(cursorDbPath)}`);
-    
     if (fs.existsSync(cursorDbPath)) {
-        console.log('[Init] Cursor database found, starting Cursor watcher');
-        try {
-            const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
-            cursorWatcher.start();
-            watchers.push(cursorWatcher);
-            console.log('[Init] Cursor watcher started successfully');
-        } catch (error) {
-            console.error('[Init] Failed to start Cursor watcher:', error);
-        }
+        console.log('Cursor database found, starting Cursor watcher');
+        const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
+        cursorWatcher.start();
+        watchers.push(cursorWatcher);
     } else {
-        console.log('[Init] Cursor database not found:', cursorDbPath);
+        console.log('Cursor database not found:', cursorDbPath);
     }
     
     // 尝试启动 Cline 监听
@@ -157,24 +147,12 @@ export async function activate(context: vscode.ExtensionContext) {
     const saveCommand = vscode.commands.registerCommand(
         'chatHistory.saveNow',
         () => {
-            console.log('[SaveNow] ========== Manual save triggered ==========');
-            console.log(`[SaveNow] Number of watchers: ${watchers.length}`);
-            console.log(`[SaveNow] Workspace root: ${workspaceRoot}`);
-            
             // 上报手动保存事件
             telemetry.trackEvent(TelemetryEvents.MANUAL_SAVE_TRIGGERED);
             
-            if (watchers.length === 0) {
-                console.error('[SaveNow] ERROR: No watchers available!');
-                vscode.window.showWarningMessage('No chat history sources found. Check Developer Console for details.');
-                return;
+            for (const watcher of watchers) {
+                watcher.syncNow();
             }
-            
-            for (let i = 0; i < watchers.length; i++) {
-                console.log(`[SaveNow] Triggering syncNow for watcher ${i + 1}/${watchers.length}`);
-                watchers[i].syncNow();
-            }
-            console.log('[SaveNow] ========== Manual save completed ==========');
             vscode.window.showInformationMessage(t('info.saved'));
         }
     );
@@ -371,19 +349,6 @@ export async function activate(context: vscode.ExtensionContext) {
     // 导出 cloudSync 供 watcher 使用
     (global as any).__cloudSyncManager = cloudSync;
 
-    // 初始化 GitHub Link Manager（Git 事件追踪）
-    const githubLinkManager = new GitHubLinkManager(context);
-    githubLinkManager.init().then(success => {
-        if (success) {
-            console.log('[GitHubLink] Git watcher initialized, watching', githubLinkManager.getWatchedReposCount(), 'repositories');
-        } else {
-            console.log('[GitHubLink] Git watcher not available (Git extension not found)');
-        }
-    });
-
-    // 导出 githubLinkManager 供其他模块使用
-    (global as any).__githubLinkManager = githubLinkManager;
-
     context.subscriptions.push(
         saveCommand, 
         searchCommand, 
@@ -393,7 +358,6 @@ export async function activate(context: vscode.ExtensionContext) {
         cloudSyncCommand,
         refreshStatusCommand,
         openSettingsCommand,
-        githubLinkManager,
         {
             dispose: () => {
                 for (const watcher of watchers) {

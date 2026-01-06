@@ -16,9 +16,10 @@ node_modules/**/*.md
 node_modules/**/.github/**
 **/*.map
 
-# Documentation (exclude from package, keep only README and quick fix)
+# Documentation (exclude from package, keep only README, CHANGELOG and quick fix)
 *.md
 !README.md
+!CHANGELOG.md
 !QUICK_FIX.md
 
 # Build scripts
