@@ -5,4 +5,7 @@ dist
 .vscode-test
 *.log
 
+# LLM chat history session config
+.llm-chat-history/config/
+
 

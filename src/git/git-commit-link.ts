@@ -58,8 +58,8 @@ export function getDashboardUrl(sessionId: string): string {
         }
     }
     
-    // Use short URL format for cleaner commit messages
-    return `${baseUrl}/d?s=${sessionId}`;
+    // Use standard dashboard URL format
+    return `${baseUrl}/dashboard?session=${sessionId}`;
 }
 
 /**
