@@ -2,6 +2,19 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.5.0] - 2026-01-07
+
+### Added
+- **Manual File Sync**: New command to manually sync files to the cloud
+  - Select and sync specific markdown files from your local history
+  - Support for incremental or full sync options
+  - Parse sessions from markdown files and sync to cloud
+  - Enhanced CloudSyncManager with file selection capabilities
+
+### Changed
+- Improved cloud sync functionality with better file handling
+- Enhanced markdown parser for better session extraction
+
 ## [0.4.0] - 2026-01-06
 
 ### Added
