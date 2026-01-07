@@ -18,6 +18,7 @@ import { showSearchInterface } from './chat-search';
 import { CloudSyncManager } from './cloud/cloud-sync';
 import { AutomationStatusProvider, AccountStatusProvider } from './sidebar/status-view';
 import { TelemetryManager, TelemetryEvents } from './telemetry/telemetry';
+import { parseMarkdown, ParsedSession } from './markdown-parser';
 
 /**
  * 扩展激活时调用
@@ -349,6 +350,14 @@ export async function activate(context: vscode.ExtensionContext) {
     // 导出 cloudSync 供 watcher 使用
     (global as any).__cloudSyncManager = cloudSync;
 
+    // 注册命令：手动选择文件同步到云端
+    const syncFilesCommand = vscode.commands.registerCommand(
+        'chatHistory.syncFiles',
+        async () => {
+            await handleSyncFilesCommand(cloudSync, t, telemetry);
+        }
+    );
+
     context.subscriptions.push(
         saveCommand, 
         searchCommand, 
@@ -358,6 +367,7 @@ export async function activate(context: vscode.ExtensionContext) {
         cloudSyncCommand,
         refreshStatusCommand,
         openSettingsCommand,
+        syncFilesCommand,
         {
             dispose: () => {
                 for (const watcher of watchers) {
@@ -485,6 +495,263 @@ export async function deactivate() {
     } catch (error) {
         console.error('[Telemetry] Failed to send deactivation event:', error);
     }
+}
+
+/**
+ * 处理手动选择文件同步命令
+ */
+async function handleSyncFilesCommand(
+    cloudSync: CloudSyncManager,
+    t: ReturnType<typeof createTranslator>,
+    telemetry: TelemetryManager
+): Promise<void> {
+    // 检查登录状态
+    if (!cloudSync.isLoggedIn()) {
+        const choice = await vscode.window.showWarningMessage(
+            t('cloud.notLoggedIn'),
+            'Login Now',
+            'Cancel'
+        );
+        if (choice === 'Login Now') {
+            await cloudSync.loginWithBrowser('login');
+        }
+        return;
+    }
+
+    // Step 1: 收集所有工作区中的 .llm-chat-history 目录
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showWarningMessage(t('sync.noWorkspace'));
+        return;
+    }
+
+    interface WorkspaceOption {
+        label: string;
+        description: string;
+        path: string;
+        isBrowse?: boolean;
+    }
+
+    const historyDirs: WorkspaceOption[] = [];
+
+    // 查找每个工作区中的 .llm-chat-history 目录
+    for (const folder of workspaceFolders) {
+        const historyPath = path.join(folder.uri.fsPath, '.llm-chat-history');
+        if (fs.existsSync(historyPath)) {
+            historyDirs.push({
+                label: `📁 ${folder.name}`,
+                description: historyPath,
+                path: historyPath,
+            });
+        }
+    }
+
+    // 添加"浏览其他文件夹"选项
+    historyDirs.push({
+        label: `📂 ${t('sync.browseFolder')}`,
+        description: '',
+        path: '',
+        isBrowse: true,
+    });
+
+    if (historyDirs.length === 1 && historyDirs[0].isBrowse) {
+        // 没有找到任何历史记录目录，直接打开浏览器
+        const selectedFolder = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: t('sync.selectWorkspace'),
+            title: t('sync.selectWorkspace'),
+        });
+
+        if (!selectedFolder || selectedFolder.length === 0) {
+            return;
+        }
+
+        historyDirs.unshift({
+            label: `📁 ${path.basename(selectedFolder[0].fsPath)}`,
+            description: selectedFolder[0].fsPath,
+            path: selectedFolder[0].fsPath,
+        });
+    }
+
+    // Step 2: 让用户选择工作区
+    const selectedWorkspace = await vscode.window.showQuickPick(historyDirs, {
+        placeHolder: t('sync.selectWorkspace'),
+        ignoreFocusOut: true,
+    });
+
+    if (!selectedWorkspace) {
+        return;
+    }
+
+    let targetDir = selectedWorkspace.path;
+
+    // 如果选择了浏览，打开文件夹选择器
+    if (selectedWorkspace.isBrowse) {
+        const selectedFolder = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: t('sync.selectWorkspace'),
+            title: t('sync.selectWorkspace'),
+        });
+
+        if (!selectedFolder || selectedFolder.length === 0) {
+            return;
+        }
+
+        targetDir = selectedFolder[0].fsPath;
+    }
+
+    // Step 3: 列出目录中的 .md 文件
+    const mdFiles: vscode.QuickPickItem[] = [];
+
+    const scanDir = (dir: string) => {
+        try {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                const filePath = path.join(dir, file);
+                const stat = fs.statSync(filePath);
+                if (stat.isFile() && file.endsWith('.md')) {
+                    mdFiles.push({
+                        label: file,
+                        description: filePath,
+                        picked: false,
+                    });
+                } else if (stat.isDirectory() && !file.startsWith('.')) {
+                    // 递归扫描子目录
+                    scanDir(filePath);
+                }
+            }
+        } catch (error) {
+            console.error('[SyncFiles] Error scanning directory:', error);
+        }
+    };
+
+    scanDir(targetDir);
+
+    if (mdFiles.length === 0) {
+        vscode.window.showWarningMessage(t('sync.noFilesSelected'));
+        return;
+    }
+
+    // Step 4: 让用户多选文件
+    const selectedFiles = await vscode.window.showQuickPick(mdFiles, {
+        placeHolder: t('sync.selectFiles'),
+        canPickMany: true,
+        ignoreFocusOut: true,
+    });
+
+    if (!selectedFiles || selectedFiles.length === 0) {
+        vscode.window.showInformationMessage(t('sync.noFilesSelected'));
+        return;
+    }
+
+    // Step 5: 选择同步模式
+    const syncModes: Array<{ label: string; description: string; mode: 'incremental' | 'full' }> = [
+        {
+            label: `🔄 ${t('sync.modeIncremental')}`,
+            description: '',
+            mode: 'incremental',
+        },
+        {
+            label: `⚠️ ${t('sync.modeFull')}`,
+            description: '',
+            mode: 'full',
+        },
+    ];
+
+    const selectedMode = await vscode.window.showQuickPick(syncModes, {
+        placeHolder: t('sync.selectMode'),
+        ignoreFocusOut: true,
+    });
+
+    if (!selectedMode) {
+        return;
+    }
+
+    // Step 6: 如果是全量同步，二次确认
+    if (selectedMode.mode === 'full') {
+        const confirm = await vscode.window.showWarningMessage(
+            t('sync.fullSyncWarningMessage'),
+            { modal: true, detail: t('sync.fullSyncWarningTitle') },
+            t('sync.confirmOverwrite')
+        );
+
+        if (confirm !== t('sync.confirmOverwrite')) {
+            return;
+        }
+    }
+
+    // Step 7: 解析文件并同步
+    await vscode.window.withProgress(
+        {
+            location: vscode.ProgressLocation.Notification,
+            title: t('sync.parsingFiles'),
+            cancellable: false,
+        },
+        async (progress) => {
+            // 解析文件
+            const sessions: ParsedSession[] = [];
+            let parsed = 0;
+
+            for (const file of selectedFiles) {
+                try {
+                    const filePath = file.description!;
+                    const content = fs.readFileSync(filePath, 'utf-8');
+                    const session = parseMarkdown(content, filePath);
+                    if (session) {
+                        sessions.push(session);
+                    }
+                } catch (error) {
+                    console.error(`[SyncFiles] Failed to parse file ${file.label}:`, error);
+                }
+                parsed++;
+                progress.report({ 
+                    message: `${parsed}/${selectedFiles.length}`,
+                    increment: (100 / selectedFiles.length) 
+                });
+            }
+
+            if (sessions.length === 0) {
+                vscode.window.showWarningMessage(t('sync.noFilesSelected'));
+                return;
+            }
+
+            // 同步到云端
+            progress.report({ message: t('sync.syncing') });
+
+            try {
+                const result = await cloudSync.syncFromFiles(sessions, selectedMode.mode);
+
+                // 上报事件
+                telemetry.trackEvent(TelemetryEvents.MANUAL_SYNC_TRIGGERED, {
+                    mode: selectedMode.mode,
+                    files_count: selectedFiles.length,
+                    success_count: result.success,
+                    failed_count: result.failed,
+                });
+
+                if (result.failed === 0) {
+                    vscode.window.showInformationMessage(
+                        t('sync.success', { count: result.success })
+                    );
+                } else if (result.success > 0) {
+                    vscode.window.showWarningMessage(
+                        t('sync.partialSuccess', { success: result.success, failed: result.failed })
+                    );
+                } else {
+                    vscode.window.showErrorMessage(
+                        t('sync.failed', { error: 'All files failed to sync' })
+                    );
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                vscode.window.showErrorMessage(t('sync.failed', { error: errorMsg }));
+            }
+        }
+    );
 }
 
 /**

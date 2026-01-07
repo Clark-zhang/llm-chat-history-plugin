@@ -2,7 +2,7 @@
   "name": "llm-chat-history",
   "displayName": "AI Chat History Saver - Auto-export conversations from Cursor, Cline, Kilo & more to Markdown",
   "description": "🚀 Automatically save AI chat history to beautiful Markdown files! Support Cursor IDE and VS Code AI extensions (Cline, Kilo, Blackbox AI). Perfect for knowledge management, team collaboration, and conversation tracking.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
@@ -184,6 +184,11 @@
         "command": "chatHistory.openSettings",
         "title": "Settings",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "chatHistory.syncFiles",
+        "title": "LLMChatHistory: Sync Files to Cloud",
+        "icon": "$(folder-opened)"
       }
     ],
     "menus": {

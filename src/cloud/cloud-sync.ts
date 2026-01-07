@@ -11,6 +11,7 @@ import { Message } from '../types';
 import { createTranslator, LocaleSetting, Translator } from '../i18n';
 import * as crypto from 'crypto';
 import { TelemetryManager, TelemetryEvents } from '../telemetry/telemetry';
+import { ParsedSession } from '../markdown-parser';
 
 export interface CloudUser {
     id: string;
@@ -45,9 +46,43 @@ export interface SyncMessage {
     images?: string;
 }
 
-export interface SyncRequest {
+// V2 增量同步相关类型
+export interface SessionSyncStatus {
+    session_id: string;
+    message_count: number;
+    updated_at: string;
+}
+
+export interface SyncStatusResponse {
+    sessions: SessionSyncStatus[];
+}
+
+export interface NewSessionRequest {
+    title: string;
+    session_id: string;
+    workspace_path?: string;
+    workspace_name?: string;
+    messages: SyncMessage[];
+}
+
+export interface UpdatedSessionRequest {
+    session_id: string;
+    title?: string;
+    workspace_path?: string;
+    workspace_name?: string;
+    new_messages: SyncMessage[];
+}
+
+export interface IncrementalSyncRequest {
     source: string;
-    sessions: SyncSession[];
+    new_sessions: NewSessionRequest[];
+    updated_sessions: UpdatedSessionRequest[];
+}
+
+export interface SyncResponse {
+    message: string;
+    new_sessions: number;
+    updated_sessions: number;
 }
 
 export class CloudSyncManager implements vscode.UriHandler {
@@ -366,7 +401,61 @@ export class CloudSyncManager implements vscode.UriHandler {
     }
 
     /**
-     * Sync sessions to cloud
+     * Get sync status from server (for incremental sync)
+     */
+    async getSyncStatus(source?: string): Promise<SessionSyncStatus[]> {
+        const token = this.getToken();
+        if (!token) {
+            throw new Error('Not logged in');
+        }
+
+        const path = source ? `/api/chat/sync/status?source=${encodeURIComponent(source)}` : '/api/chat/sync/status';
+        const response = await this.request<SyncStatusResponse>('GET', path, undefined, token);
+        return response.sessions || [];
+    }
+
+    /**
+     * Calculate incremental delta between local sessions and server status
+     */
+    calculateSyncDelta(localSessions: SyncSession[], serverStatus: SessionSyncStatus[]): {
+        newSessions: NewSessionRequest[];
+        updatedSessions: UpdatedSessionRequest[];
+    } {
+        const serverMap = new Map(serverStatus.map(s => [s.session_id, s]));
+
+        const newSessions: NewSessionRequest[] = [];
+        const updatedSessions: UpdatedSessionRequest[] = [];
+
+        for (const local of localSessions) {
+            const server = serverMap.get(local.session_id);
+
+            if (!server) {
+                // New session: send all data
+                newSessions.push({
+                    title: local.title,
+                    session_id: local.session_id,
+                    workspace_path: local.workspace_path,
+                    workspace_name: local.workspace_name,
+                    messages: local.messages,
+                });
+            } else if (local.messages.length > server.message_count) {
+                // Has new messages: send only the delta
+                updatedSessions.push({
+                    session_id: local.session_id,
+                    title: local.title,
+                    workspace_path: local.workspace_path,
+                    workspace_name: local.workspace_name,
+                    new_messages: local.messages.slice(server.message_count),
+                });
+            }
+            // If message count is the same, no sync needed
+        }
+
+        return { newSessions, updatedSessions };
+    }
+
+    /**
+     * Sync sessions to cloud (V2: incremental sync)
      */
     async syncSessions(source: string, sessions: SyncSession[]): Promise<void> {
         const token = this.getToken();
@@ -378,12 +467,34 @@ export class CloudSyncManager implements vscode.UriHandler {
             return;
         }
 
-        const syncRequest: SyncRequest = {
+        // Step 1: Get current sync status from server
+        console.log(`[CloudSync] Fetching sync status for ${sessions.length} local sessions...`);
+        const serverStatus = await this.getSyncStatus(source);
+        console.log(`[CloudSync] Server has ${serverStatus.length} sessions`);
+
+        // Step 2: Calculate delta
+        const { newSessions, updatedSessions } = this.calculateSyncDelta(sessions, serverStatus);
+        
+        const totalNewMessages = newSessions.reduce((sum, s) => sum + s.messages.length, 0);
+        const totalUpdatedMessages = updatedSessions.reduce((sum, s) => sum + s.new_messages.length, 0);
+        
+        console.log(`[CloudSync] Delta: ${newSessions.length} new sessions (${totalNewMessages} messages), ${updatedSessions.length} updated sessions (${totalUpdatedMessages} new messages)`);
+
+        // Step 3: Skip if nothing to sync
+        if (newSessions.length === 0 && updatedSessions.length === 0) {
+            console.log('[CloudSync] No changes to sync');
+            return;
+        }
+
+        // Step 4: Send incremental sync request
+        const syncRequest: IncrementalSyncRequest = {
             source,
-            sessions,
+            new_sessions: newSessions,
+            updated_sessions: updatedSessions,
         };
 
-        await this.request<{ message: string }>('POST', '/api/chat/sync', syncRequest, token);
+        const response = await this.request<SyncResponse>('POST', '/api/chat/sync', syncRequest, token);
+        console.log(`[CloudSync] Sync completed: ${response.new_sessions} new, ${response.updated_sessions} updated`);
     }
 
     /**
@@ -493,6 +604,75 @@ export class CloudSyncManager implements vscode.UriHandler {
         } catch (error) {
             console.error('[CloudSync] Failed to track telemetry event:', error);
         }
+    }
+
+    /**
+     * Sync parsed sessions from files (supports incremental and full sync)
+     * @param sessions Parsed sessions from markdown files
+     * @param mode 'incremental' or 'full'
+     */
+    async syncFromFiles(sessions: ParsedSession[], mode: 'incremental' | 'full'): Promise<{ success: number; failed: number }> {
+        const token = this.getToken();
+        if (!token) {
+            throw new Error('Not logged in');
+        }
+
+        let success = 0;
+        let failed = 0;
+
+        if (mode === 'incremental') {
+            // Incremental sync: use existing sync logic
+            const cloudSessions: SyncSession[] = sessions.map(session => ({
+                title: session.title,
+                session_id: session.session_id,
+                workspace_path: session.workspace_path,
+                workspace_name: session.workspace_name,
+                messages: session.messages,
+            }));
+
+            try {
+                await this.syncSessions(sessions[0]?.source || 'cursor', cloudSessions);
+                success = sessions.length;
+            } catch (error) {
+                failed = sessions.length;
+                throw error;
+            }
+        } else {
+            // Full sync: replace each session completely
+            for (const session of sessions) {
+                try {
+                    await this.replaceSession(session);
+                    success++;
+                } catch (error) {
+                    console.error(`[CloudSync] Failed to replace session ${session.session_id}:`, error);
+                    failed++;
+                }
+            }
+        }
+
+        return { success, failed };
+    }
+
+    /**
+     * Replace a session completely (full sync mode)
+     */
+    async replaceSession(session: ParsedSession): Promise<void> {
+        const token = this.getToken();
+        if (!token) {
+            throw new Error('Not logged in');
+        }
+
+        const requestBody = {
+            source: session.source || 'cursor',
+            session_id: session.session_id,
+            title: session.title,
+            workspace_path: session.workspace_path,
+            workspace_name: session.workspace_name,
+            messages: session.messages,
+        };
+
+        await this.request('PUT', '/api/chat/sessions/replace', requestBody, token);
+        console.log(`[CloudSync] Replaced session: ${session.session_id}`);
     }
 }
 
