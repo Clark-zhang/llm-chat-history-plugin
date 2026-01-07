@@ -59,7 +59,16 @@ export class WorkspaceFilter {
             }
         }
 
-        console.log(`[WorkspaceFilter] ✗ ${composerName}: No workspace info in bubble`);
+        // Allow chats without workspace info to be saved as global chats
+        // This handles cases where Cursor doesn't record workspace information
+        if (!bubble.workspaceUris?.length && !bubble.workspaceProjectDir) {
+            if (this.currentWorkspacePath) {
+                console.log(`[WorkspaceFilter] ⚠ ${composerName}: No workspace info, allowing as global chat in current workspace`);
+                return true;
+            }
+        }
+
+        console.log(`[WorkspaceFilter] ✗ ${composerName}: Workspace mismatch or no workspace info`);
         return false;
     }
 

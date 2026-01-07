@@ -2,6 +2,12 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.5.1] - 2026-01-07
+
+### Changed
+- Add logic to save no Workspace files.
+
+
 ## [0.5.0] - 2026-01-07
 
 ### Added
