@@ -17,7 +17,7 @@
 https://github.com/user-attachments/assets/f0b7f5b1-0aac-4509-8d42-eadf738a7989
 
 ## website
-- [llm-chat-history.com](llm-chat-history.com)
+- [llm-chat-history.com](https://llm-chat-history.com)
 
 ## 💬 Support
 
