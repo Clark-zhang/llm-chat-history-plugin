@@ -12,6 +12,8 @@ import { BlackboxWatcher } from './agents/blackboxai/blackboxai-watcher';
 import { getBlackboxStoragePath } from './agents/blackboxai/blackboxai-reader';
 import { KiloWatcher } from './agents/kilo/kilo-watcher';
 import { getKiloStoragePath } from './agents/kilo/kilo-reader';
+import { CopilotWatcher } from './agents/copilot/copilot-watcher';
+import { getCopilotStoragePath } from './agents/copilot/copilot-reader';
 import { createTranslator } from './i18n';
 import { SqliteLoader } from './sqlite-loader';
 import { showSearchInterface } from './chat-search';
@@ -172,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext) {
     let clineStoragePath: string | undefined;
     let blackboxStoragePath: string | undefined;
     let kiloStoragePath: string | undefined;
+    let copilotStoragePath: string | undefined;
     
     if (ideType === 'cursor') {
         // Cursor IDE: 只监听 Cursor 数据库
@@ -186,8 +189,8 @@ export async function activate(context: vscode.ExtensionContext) {
             console.log('Cursor database not found:', cursorDbPath);
         }
     } else {
-        // VS Code: 监听其他 VSCode 插件（Cline, Blackbox AI, Kilo）
-        console.log('Running in VS Code, starting VSCode plugin watchers (Cline, Blackbox AI, Kilo)');
+        // VS Code: 监听其他 VSCode 插件（Cline, Blackbox AI, Kilo, Copilot）
+        console.log('Running in VS Code, starting VSCode plugin watchers (Cline, Blackbox AI, Kilo, Copilot)');
         
         // 尝试启动 Cline 监听
         clineStoragePath = getClineStoragePath();
@@ -221,13 +224,24 @@ export async function activate(context: vscode.ExtensionContext) {
         } else {
             console.log('Kilo storage not found:', kiloStoragePath);
         }
+
+        // 尝试启动 Copilot Chat 监听
+        copilotStoragePath = getCopilotStoragePath();
+        if (fs.existsSync(copilotStoragePath)) {
+            console.log('[Copilot] Storage found, starting watcher');
+            const copilotWatcher = new CopilotWatcher(copilotStoragePath, workspaceRoot, localeSetting);
+            copilotWatcher.start();
+            watchers.push(copilotWatcher);
+        } else {
+            console.log('[Copilot] Storage not found:', copilotStoragePath);
+        }
     }
     
     // 如果没有找到任何聊天历史
     if (watchers.length === 0) {
-        console.warn('No chat history sources found (Cursor, Cline, Blackbox AI, or Kilo)');
+        console.warn('No chat history sources found (Cursor, Cline, Blackbox AI, Kilo, or Copilot)');
         vscode.window.showWarningMessage(
-            'LLM Chat History: No supported AI plugins found. Please install and use Cursor, Cline, Blackbox AI, or Kilo.'
+            'LLM Chat History: No supported AI plugins found. Please install and use Cursor, Cline, Blackbox AI, Kilo, or GitHub Copilot Chat.'
         );
         return;
     }
@@ -239,6 +253,7 @@ export async function activate(context: vscode.ExtensionContext) {
         cline_found: clineStoragePath ? fs.existsSync(clineStoragePath) : false,
         blackbox_found: blackboxStoragePath ? fs.existsSync(blackboxStoragePath) : false,
         kilo_found: kiloStoragePath ? fs.existsSync(kiloStoragePath) : false,
+        copilot_found: copilotStoragePath ? fs.existsSync(copilotStoragePath) : false,
         cloud_sync_enabled: config.get<boolean>('cloudSync.enabled', false),
         auto_save_enabled: autoSave,
         ide_type: ideType,

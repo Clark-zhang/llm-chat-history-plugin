@@ -121,6 +121,7 @@ function extractSource(lines: string[]): string | null {
         if (line.includes('Cline')) return 'cline';
         if (line.includes('Blackbox')) return 'blackboxai';
         if (line.includes('Kilo')) return 'kilo';
+        if (line.includes('Copilot')) return 'copilot';
     }
     return null;
 }
