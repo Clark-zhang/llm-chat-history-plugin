@@ -86,9 +86,24 @@ model: "${conversation.model || 'Unknown'}"
     private generateSpeakerTitle(message: KiloMessage, index: number): string {
         const role = message.role;
         const icon = role === 'user' ? '💬' : role === 'assistant' ? '🤖' : '⚙️';
-        const timestamp = new Date(message.timestamp).toLocaleString();
+        const timestamp = this.formatDate(message.timestamp);
 
         return `## ${icon} ${this.t(`markdown.${role}`)} #${index}\n\n_${timestamp}_`;
+    }
+
+    /**
+     * 格式化日期为 UTC
+     */
+    private formatDate(isoDate: string): string {
+        const date = new Date(isoDate);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const hour = String(date.getUTCHours()).padStart(2, '0');
+        const minute = String(date.getUTCMinutes()).padStart(2, '0');
+        const second = String(date.getUTCSeconds()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}Z`;
     }
 
     private formatMessageContent(content: string): string {

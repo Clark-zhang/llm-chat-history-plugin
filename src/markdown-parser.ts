@@ -153,6 +153,124 @@ function parseMessages(lines: string[]): SyncMessage[] {
     let toolUseContent: string[] = [];
     let inToolResult = false;
     let toolResultContent: string[] = [];
+    let messageIndex = 0; // 用于为没有时间戳的消息生成递增时间戳
+    
+    // 尝试从文件中提取第一个有效时间戳作为基准
+    let baseTimestamp: Date | null = null;
+    for (const line of lines) {
+        const timeMatch = line.match(/^_(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}(?::\d{2})?Z?)_$/);
+        if (timeMatch) {
+            try {
+                baseTimestamp = parseTimestamp(timeMatch[1]);
+                break;
+            } catch {
+                // 继续查找
+            }
+        }
+    }
+    
+    /**
+     * 解析工具调用内容，提取结构化数据
+     */
+    const parseToolUses = (content: string): string | undefined => {
+        if (!content || !content.trim()) return undefined;
+        
+        const tools: any[] = [];
+        const toolBlocks = content.split(/<details>/);
+        
+        for (const block of toolBlocks) {
+            if (!block.trim()) continue;
+            
+            // 提取工具名称（从 <summary> 中）
+            // 支持多种格式：
+            // 1. <summary>🔧 **tool_name**</summary>
+            // 2. <summary><strong>tool_name</strong></summary>
+            // 3. <summary>tool_name</summary>
+            const summaryMatch = block.match(/<summary>([\s\S]*?)<\/summary>/);
+            if (!summaryMatch) continue;
+            
+            let toolName = summaryMatch[1].trim();
+            // 移除 HTML 标签
+            toolName = toolName.replace(/<[^>]+>/g, '');
+            // 移除 markdown 格式标记
+            toolName = toolName.replace(/\*\*/g, '').replace(/\*/g, '');
+            // 移除 emoji 和多余字符
+            toolName = toolName.replace(/^🔧\s*/, '').trim();
+            // 移除多余的空格和换行
+            toolName = toolName.replace(/\s+/g, ' ').trim();
+            
+            if (!toolName) continue;
+            
+            // 提取状态
+            const statusMatch = block.match(/_Status:\s*(\w+)_/);
+            const status = statusMatch ? statusMatch[1] : undefined;
+            
+            // 提取参数（Args 部分的 JSON）
+            const argsMatch = block.match(/\*\*Args?\*\*\s*```json\s*([\s\S]*?)```/i);
+            let args: any = undefined;
+            if (argsMatch) {
+                try {
+                    const argsJson = argsMatch[1].trim();
+                    // 处理可能是转义的 JSON 字符串
+                    if (argsJson.startsWith('"') && argsJson.endsWith('"')) {
+                        const unescaped = JSON.parse(argsJson);
+                        if (typeof unescaped === 'string') {
+                            args = JSON.parse(unescaped);
+                        } else {
+                            args = unescaped;
+                        }
+                    } else {
+                        args = JSON.parse(argsJson);
+                    }
+                } catch (e) {
+                    // 解析失败，尝试作为字符串
+                    args = argsMatch[1].trim();
+                }
+            }
+            
+            // 提取结果（Result 部分的 JSON）
+            const resultMatch = block.match(/\*\*Result\*\*\s*```json\s*([\s\S]*?)```/i);
+            let result: any = undefined;
+            if (resultMatch) {
+                try {
+                    const resultJson = resultMatch[1].trim();
+                    if (resultJson.startsWith('"') && resultJson.endsWith('"')) {
+                        const unescaped = JSON.parse(resultJson);
+                        if (typeof unescaped === 'string') {
+                            result = JSON.parse(unescaped);
+                        } else {
+                            result = unescaped;
+                        }
+                    } else {
+                        result = JSON.parse(resultJson);
+                    }
+                } catch (e) {
+                    result = resultMatch[1].trim();
+                }
+            }
+            
+            tools.push({
+                name: toolName,
+                ...(status && { status }),
+                ...(args !== undefined && { input: args }),
+                ...(result !== undefined && { result }),
+            });
+        }
+        
+        return tools.length > 0 ? JSON.stringify(tools) : undefined;
+    };
+    
+    /**
+     * 解析工具结果内容
+     */
+    const parseToolResults = (content: string): string | undefined => {
+        if (!content || !content.trim()) return undefined;
+        
+        // 工具结果通常已经在 tool_uses 中包含了
+        // 这里可以提取独立的工具结果（如果有的话）
+        // 暂时返回原始内容，后续可以优化
+        return content.trim() || undefined;
+    };
     
     const flushMessage = () => {
         if (currentMessage && currentMessage.type) {
@@ -161,18 +279,66 @@ function parseMessages(lines: string[]): SyncMessage[] {
                 currentMessage.thinking = thinkingContent.join('\n').trim();
             }
             if (toolUseContent.length > 0) {
-                currentMessage.tool_uses = toolUseContent.join('\n').trim();
+                // 解析工具调用为 JSON 数组
+                const toolUsesJson = parseToolUses(toolUseContent.join('\n'));
+                if (toolUsesJson) {
+                    currentMessage.tool_uses = toolUsesJson;
+                }
             }
             if (toolResultContent.length > 0) {
-                currentMessage.tool_results = toolResultContent.join('\n').trim();
+                // 解析工具结果
+                const toolResultsJson = parseToolResults(toolResultContent.join('\n'));
+                if (toolResultsJson) {
+                    currentMessage.tool_results = toolResultsJson;
+                }
             }
             
             // 确保有 timestamp
             if (!currentMessage.timestamp) {
-                currentMessage.timestamp = new Date().toISOString();
+                // 如果没有时间戳，使用基准时间戳 + 消息索引的秒数
+                // 这样可以保持消息的顺序
+                if (baseTimestamp) {
+                    const estimatedTime = new Date(baseTimestamp.getTime() + messageIndex * 1000);
+                    currentMessage.timestamp = estimatedTime.toISOString();
+                } else {
+                    // 如果没有基准时间戳，使用一个很早的时间 + 索引
+                    // 使用 1970-01-01 作为基准，每消息间隔1秒
+                    const estimatedTime = new Date('1970-01-01T00:00:00Z');
+                    estimatedTime.setSeconds(messageIndex);
+                    currentMessage.timestamp = estimatedTime.toISOString();
+                }
+            } else {
+                // 确保时间戳格式是 ISO 8601
+                try {
+                    const date = new Date(currentMessage.timestamp);
+                    if (isNaN(date.getTime())) {
+                        // 如果无法解析，使用估算时间
+                        if (baseTimestamp) {
+                            const estimatedTime = new Date(baseTimestamp.getTime() + messageIndex * 1000);
+                            currentMessage.timestamp = estimatedTime.toISOString();
+                        } else {
+                            const estimatedTime = new Date('1970-01-01T00:00:00Z');
+                            estimatedTime.setSeconds(messageIndex);
+                            currentMessage.timestamp = estimatedTime.toISOString();
+                        }
+                    } else {
+                        currentMessage.timestamp = date.toISOString();
+                    }
+                } catch {
+                    // 解析失败，使用估算时间
+                    if (baseTimestamp) {
+                        const estimatedTime = new Date(baseTimestamp.getTime() + messageIndex * 1000);
+                        currentMessage.timestamp = estimatedTime.toISOString();
+                    } else {
+                        const estimatedTime = new Date('1970-01-01T00:00:00Z');
+                        estimatedTime.setSeconds(messageIndex);
+                        currentMessage.timestamp = estimatedTime.toISOString();
+                    }
+                }
             }
             
             messages.push(currentMessage as SyncMessage);
+            messageIndex++;
         }
         currentMessage = null;
         currentContent = [];
@@ -226,9 +392,13 @@ function parseMessages(lines: string[]): SyncMessage[] {
                 // 尝试解析时间
                 const date = parseTimestamp(timeStr);
                 currentMessage.timestamp = date.toISOString();
+                // 更新基准时间戳（如果这是第一个）
+                if (!baseTimestamp) {
+                    baseTimestamp = date;
+                }
             } catch {
-                // 如果解析失败，使用原始字符串
-                currentMessage.timestamp = timeStr;
+                // 如果解析失败，不设置时间戳，让 flushMessage 处理
+                // 这样可以使用估算时间戳保持顺序
             }
             continue;
         }
@@ -246,28 +416,42 @@ function parseMessages(lines: string[]): SyncMessage[] {
             continue;
         }
         
-        // 检测工具调用开始
+        // 检测工具调用开始（**🔧 Tool Uses** 或 **🔧 工具调用**）
         if (line.match(/\*\*🔧\s*(Tool Uses?|工具调用)\*\*/i)) {
             inToolUse = true;
             continue;
         }
         
-        // 检测工具结果开始
-        if (line.match(/<summary>.*Result.*<\/summary>/i) || 
-            line.match(/<summary>.*结果.*<\/summary>/i)) {
+        // 检测工具调用块开始（<details> 包含工具名称）
+        if (line.includes('<details>') && !inThinking && !inToolUse) {
+            // 检查是否是工具调用块（summary 中包含工具名称或 🔧）
+            const nextLine = lines[i + 1] || '';
+            if (nextLine.match(/<summary>.*🔧|Tool|工具/i)) {
+                inToolUse = true;
+                toolUseContent.push(line);
+                continue;
+            }
+        }
+        
+        // 检测工具结果开始（在工具调用块内的 Result 部分）
+        if (inToolUse && (line.match(/<summary>.*Result.*<\/summary>/i) || 
+            line.match(/<summary>.*结果.*<\/summary>/i))) {
             inToolResult = true;
+            toolUseContent.push(line); // 仍然收集到 toolUseContent
+            continue;
+        }
+        
+        // 检测工具调用块结束
+        if (inToolUse && line.includes('</details>')) {
+            toolUseContent.push(line);
             inToolUse = false;
+            inToolResult = false;
             continue;
         }
         
         // 检测分隔线（消息结束标记）
         if (line.match(/^---\s*$/)) {
             // 不立即 flush，因为可能是文档内的分隔线
-            continue;
-        }
-        
-        // 跳过 summary 行
-        if (line.includes('<summary>') || line.includes('</summary>')) {
             continue;
         }
         
@@ -278,13 +462,11 @@ function parseMessages(lines: string[]): SyncMessage[] {
                 const cleanLine = line.replace(/^>\s?/, '');
                 thinkingContent.push(cleanLine);
             } else if (inToolUse) {
+                // 收集工具调用内容（包括 details 标签、summary、JSON 代码块等）
                 toolUseContent.push(line);
             } else if (inToolResult) {
-                if (line.includes('</details>')) {
-                    inToolResult = false;
-                } else {
-                    toolResultContent.push(line);
-                }
+                // 工具结果内容（现在也收集到 toolUseContent 中）
+                toolResultContent.push(line);
             } else {
                 currentContent.push(line);
             }
@@ -293,6 +475,13 @@ function parseMessages(lines: string[]): SyncMessage[] {
     
     // 保存最后一个消息
     flushMessage();
+    
+    // 按时间戳排序消息，确保顺序正确
+    messages.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeA - timeB;
+    });
     
     return messages;
 }

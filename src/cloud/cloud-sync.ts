@@ -662,17 +662,30 @@ export class CloudSyncManager implements vscode.UriHandler {
             throw new Error('Not logged in');
         }
 
+        // 确保消息按时间戳排序（稳定排序：时间戳相同时保持原顺序）
+        const sortedMessages = [...session.messages].map((msg, index) => ({ msg, index }))
+            .sort((a, b) => {
+                const timeA = new Date(a.msg.timestamp).getTime();
+                const timeB = new Date(b.msg.timestamp).getTime();
+                if (timeA !== timeB) {
+                    return timeA - timeB;
+                }
+                // 时间戳相同时，保持原顺序（使用索引作为次要排序键）
+                return a.index - b.index;
+            })
+            .map(item => item.msg);
+
         const requestBody = {
             source: session.source || 'cursor',
             session_id: session.session_id,
             title: session.title,
             workspace_path: session.workspace_path,
             workspace_name: session.workspace_name,
-            messages: session.messages,
+            messages: sortedMessages,
         };
 
         await this.request('PUT', '/api/chat/sessions/replace', requestBody, token);
-        console.log(`[CloudSync] Replaced session: ${session.session_id}`);
+        console.log(`[CloudSync] Replaced session: ${session.session_id} with ${sortedMessages.length} messages`);
     }
 }
 
