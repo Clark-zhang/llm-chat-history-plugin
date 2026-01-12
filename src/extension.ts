@@ -163,48 +163,64 @@ export async function activate(context: vscode.ExtensionContext) {
     // 存储启动的监听器
     const watchers: Array<{ stop: () => void; syncNow: () => void }> = [];
     
-    // 尝试启动 Cursor 监听
-    const cursorDbPath = getCursorDatabasePath();
-    if (fs.existsSync(cursorDbPath)) {
-        console.log('Cursor database found, starting Cursor watcher');
-        const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
-        cursorWatcher.start();
-        watchers.push(cursorWatcher);
-    } else {
-        console.log('Cursor database not found:', cursorDbPath);
-    }
+    // 检测 IDE 类型
+    const ideType = detectIDEType();
+    console.log(`[Extension] Detected IDE type: ${ideType}`);
     
-    // 尝试启动 Cline 监听
-    const clineStoragePath = getClineStoragePath();
-    if (fs.existsSync(clineStoragePath)) {
-        console.log('[Cline] Storage found, starting watcher');
-        const clineWatcher = new ClineWatcher(clineStoragePath, workspaceRoot, localeSetting);
-        clineWatcher.start();
-        watchers.push(clineWatcher);
+    let cursorDbPath: string | undefined;
+    let cursorFound = false;
+    let clineStoragePath: string | undefined;
+    let blackboxStoragePath: string | undefined;
+    let kiloStoragePath: string | undefined;
+    
+    if (ideType === 'cursor') {
+        // Cursor IDE: 只监听 Cursor 数据库
+        cursorDbPath = getCursorDatabasePath();
+        cursorFound = fs.existsSync(cursorDbPath);
+        if (cursorFound) {
+            console.log('Cursor database found, starting Cursor watcher');
+            const cursorWatcher = new DatabaseWatcher(cursorDbPath, workspaceRoot, localeSetting, context.extensionPath);
+            cursorWatcher.start();
+            watchers.push(cursorWatcher);
+        } else {
+            console.log('Cursor database not found:', cursorDbPath);
+        }
     } else {
-        console.log('[Cline] Storage not found');
-    }
+        // VS Code: 监听其他 VSCode 插件（Cline, Blackbox AI, Kilo）
+        console.log('Running in VS Code, starting VSCode plugin watchers (Cline, Blackbox AI, Kilo)');
+        
+        // 尝试启动 Cline 监听
+        clineStoragePath = getClineStoragePath();
+        if (fs.existsSync(clineStoragePath)) {
+            console.log('[Cline] Storage found, starting watcher');
+            const clineWatcher = new ClineWatcher(clineStoragePath, workspaceRoot, localeSetting);
+            clineWatcher.start();
+            watchers.push(clineWatcher);
+        } else {
+            console.log('[Cline] Storage not found');
+        }
 
-    // 尝试启动 Blackbox AI 监听
-    const blackboxStoragePath = getBlackboxStoragePath();
-    if (fs.existsSync(blackboxStoragePath)) {
-        console.log('Blackbox AI storage found, starting Blackbox AI watcher');
-        const blackboxWatcher = new BlackboxWatcher(blackboxStoragePath, workspaceRoot, localeSetting);
-        blackboxWatcher.start();
-        watchers.push(blackboxWatcher);
-    } else {
-        console.log('Blackbox AI storage not found:', blackboxStoragePath);
-    }
+        // 尝试启动 Blackbox AI 监听
+        blackboxStoragePath = getBlackboxStoragePath();
+        if (fs.existsSync(blackboxStoragePath)) {
+            console.log('Blackbox AI storage found, starting Blackbox AI watcher');
+            const blackboxWatcher = new BlackboxWatcher(blackboxStoragePath, workspaceRoot, localeSetting);
+            blackboxWatcher.start();
+            watchers.push(blackboxWatcher);
+        } else {
+            console.log('Blackbox AI storage not found:', blackboxStoragePath);
+        }
 
-    // 尝试启动 Kilo 监听
-    const kiloStoragePath = getKiloStoragePath();
-    if (fs.existsSync(kiloStoragePath)) {
-        console.log('Kilo storage found, starting Kilo watcher');
-        const kiloWatcher = new KiloWatcher(kiloStoragePath, workspaceRoot, localeSetting);
-        kiloWatcher.start();
-        watchers.push(kiloWatcher);
-    } else {
-        console.log('Kilo storage not found:', kiloStoragePath);
+        // 尝试启动 Kilo 监听
+        kiloStoragePath = getKiloStoragePath();
+        if (fs.existsSync(kiloStoragePath)) {
+            console.log('Kilo storage found, starting Kilo watcher');
+            const kiloWatcher = new KiloWatcher(kiloStoragePath, workspaceRoot, localeSetting);
+            kiloWatcher.start();
+            watchers.push(kiloWatcher);
+        } else {
+            console.log('Kilo storage not found:', kiloStoragePath);
+        }
     }
     
     // 如果没有找到任何聊天历史
@@ -219,12 +235,13 @@ export async function activate(context: vscode.ExtensionContext) {
     // 上报插件激活事件
     telemetry.trackEvent(TelemetryEvents.EXTENSION_ACTIVATED, {
         watchers_count: watchers.length,
-        cursor_found: fs.existsSync(cursorDbPath),
-        cline_found: fs.existsSync(clineStoragePath),
-        blackbox_found: fs.existsSync(blackboxStoragePath),
-        kilo_found: fs.existsSync(kiloStoragePath),
+        cursor_found: cursorFound,
+        cline_found: clineStoragePath ? fs.existsSync(clineStoragePath) : false,
+        blackbox_found: blackboxStoragePath ? fs.existsSync(blackboxStoragePath) : false,
+        kilo_found: kiloStoragePath ? fs.existsSync(kiloStoragePath) : false,
         cloud_sync_enabled: config.get<boolean>('cloudSync.enabled', false),
         auto_save_enabled: autoSave,
+        ide_type: ideType,
     });
     
     // 注册命令：手动保存
@@ -814,6 +831,33 @@ async function handleSyncFilesCommand(
             }
         }
     );
+}
+
+/**
+ * 检测当前 IDE 类型
+ * 返回 'cursor' 或 'vscode'
+ */
+function detectIDEType(): 'cursor' | 'vscode' {
+    // 方法1：检查 Cursor 特有的环境变量（最可靠）
+    if (process.env.CURSOR_PID || process.env.CURSOR_DATA_FOLDER) {
+        return 'cursor';
+    }
+    
+    // 方法2：检查可执行路径
+    const execPath = process.execPath?.toLowerCase() || '';
+    if (execPath.includes('cursor')) {
+        return 'cursor';
+    }
+    
+    // 方法3：检查 VS Code 特有的环境变量
+    if (process.env.VSCODE_CWD || process.env.VSCODE_PID) {
+        // 如果明确是 VS Code，返回 vscode
+        // 注意：Cursor 也可能设置这些变量，所以优先检查 Cursor
+        return 'vscode';
+    }
+    
+    // 默认：如果无法确定，假设是 VS Code（更安全，避免误读 Cursor 数据）
+    return 'vscode';
 }
 
 /**
