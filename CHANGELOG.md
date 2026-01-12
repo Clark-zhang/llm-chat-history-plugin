@@ -2,6 +2,11 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.5.5] - 2026-01-12
+- Add copilot/kiro support
+- UE fix
+
+
 ## [0.5.2/0.5.3/0.5.4] - 2026-01-12
 
 ### Changed
