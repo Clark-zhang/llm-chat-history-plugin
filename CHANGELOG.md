@@ -2,12 +2,13 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
-## [0.5.2/0.5.3] - 2026-01-12
+## [0.5.2/0.5.3/0.5.4] - 2026-01-12
 
 ### Changed
 - fix sqlite3 compatible
 - timestamp with second
 - fix manually sync file format with markdown.
+- fix refresh & message when no workspace open.
 
 ## [0.5.1] - 2026-01-07
 

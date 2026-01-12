@@ -59,6 +59,89 @@ export async function activate(context: vscode.ExtensionContext) {
     const localeSetting = config.get<string>('locale', 'auto') as any;
     const t = createTranslator(localeSetting);
     
+    // ✅ 先注册不依赖特定条件的命令，确保即使扩展提前返回也能使用
+    // 注册命令：刷新侧边栏状态
+    const refreshStatusCommand = vscode.commands.registerCommand(
+        'chatHistory.refreshStatus',
+        async () => {
+            // 检查 provider 是否存在（容错处理）
+            const automationProvider = (global as any).__automationStatusProvider;
+            const accountProvider = (global as any).__accountStatusProvider;
+            
+            if (automationProvider) {
+                automationProvider.refresh();
+            }
+            if (accountProvider) {
+                accountProvider.refresh();
+            }
+            
+            if (automationProvider || accountProvider) {
+                vscode.window.showInformationMessage('Status refreshed');
+            } else {
+                // 扩展未完全激活，提供友好的诊断信息和操作建议
+                const config = vscode.workspace.getConfiguration('chatHistory');
+                const autoSave = config.get<boolean>('autoSave', true);
+                const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+                
+                let message = 'LLM Chat History extension is not fully activated.\n\n';
+                const actions: string[] = [];
+                
+                if (!hasWorkspace) {
+                    message += '⚠️ No workspace folder is open.\n';
+                    message += 'Please open a workspace folder to enable chat history saving.\n\n';
+                    actions.push('Open Folder', 'Open Workspace');
+                }
+                
+                if (!autoSave) {
+                    message += '⚠️ Auto-save is disabled.\n';
+                    message += 'Please enable "chatHistory.autoSave" in settings to activate the extension.\n\n';
+                    actions.push('Enable Auto-Save');
+                }
+                
+                if (hasWorkspace && autoSave) {
+                    message += '⚠️ No supported AI plugins found.\n';
+                    message += 'Please install and use Cursor, Cline, Blackbox AI, or Kilo to generate chat history.\n\n';
+                }
+                
+                message += 'Click "Open Settings" to configure the extension.';
+                actions.push('Open Settings');
+                
+                const choice = await vscode.window.showWarningMessage(message, ...actions);
+                
+                if (choice === 'Open Folder') {
+                    await vscode.commands.executeCommand('workbench.action.files.openFolder');
+                } else if (choice === 'Open Workspace') {
+                    await vscode.commands.executeCommand('workbench.action.openWorkspace');
+                } else if (choice === 'Enable Auto-Save') {
+                    await config.update('autoSave', true, true);
+                    vscode.window.showInformationMessage('Auto-save enabled. Please reload the window for changes to take effect.', 'Reload Window')
+                        .then(selection => {
+                            if (selection === 'Reload Window') {
+                                vscode.commands.executeCommand('workbench.action.reloadWindow');
+                            }
+                        });
+                } else if (choice === 'Open Settings') {
+                    await vscode.commands.executeCommand('workbench.action.openSettings', 'chatHistory');
+                }
+            }
+        }
+    );
+
+    // 注册命令：打开设置
+    const openSettingsCommand = vscode.commands.registerCommand(
+        'chatHistory.openSettings',
+        (settingKey?: string) => {
+            if (settingKey) {
+                vscode.commands.executeCommand('workbench.action.openSettings', settingKey);
+            } else {
+                vscode.commands.executeCommand('workbench.action.openSettings', 'chatHistory');
+            }
+        }
+    );
+
+    // 将命令添加到 subscriptions，确保在扩展停用时正确清理
+    context.subscriptions.push(refreshStatusCommand, openSettingsCommand);
+    
     if (!autoSave) {
         console.log('Auto-save disabled');
         return;
@@ -271,27 +354,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     );
 
-    // 注册命令：刷新侧边栏状态
-    const refreshStatusCommand = vscode.commands.registerCommand(
-        'chatHistory.refreshStatus',
-        () => {
-            automationStatusProvider.refresh();
-            accountStatusProvider.refresh();
-            vscode.window.showInformationMessage('Status refreshed');
-        }
-    );
-
-    // 注册命令：打开设置
-    const openSettingsCommand = vscode.commands.registerCommand(
-        'chatHistory.openSettings',
-        (settingKey?: string) => {
-            if (settingKey) {
-                vscode.commands.executeCommand('workbench.action.openSettings', settingKey);
-            } else {
-                vscode.commands.executeCommand('workbench.action.openSettings', 'chatHistory');
-            }
-        }
-    );
+    // 注意：refreshStatusCommand 和 openSettingsCommand 已在函数开头注册
 
     // 注册命令：立即同步到云端
     const cloudSyncCommand = vscode.commands.registerCommand(
@@ -365,8 +428,6 @@ export async function activate(context: vscode.ExtensionContext) {
         cloudLogoutCommand, 
         showCloudStatusCommand, 
         cloudSyncCommand,
-        refreshStatusCommand,
-        openSettingsCommand,
         syncFilesCommand,
         {
             dispose: () => {
@@ -376,6 +437,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         }
     );
+    // 注意：refreshStatusCommand 和 openSettingsCommand 已在函数开头添加到 subscriptions
     
     console.log(`LLM Chat History Extension ready (${watchers.length} source(s))`);
 
