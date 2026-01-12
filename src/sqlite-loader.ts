@@ -157,19 +157,22 @@ export class SqliteLoader {
 
         console.log(`Detected IDE: ${ideType}, Electron version: ${electronVersion}`);
 
+        // Always prioritize the detected Electron version first
+        const detectedVersion = `${majorVersion}.0.0`;
+        
         // IDE-specific version preferences (minimal set: only 37 and 39)
         if (ideType === 'cursor') {
             // Cursor 2.x typically uses Electron 37.x
-            return [
-                '37.0.0',        // Electron 37 (Cursor 2.x stable)
-                '39.0.0',        // Electron 39 (fallback)
-            ];
+            const versions = [detectedVersion];
+            if (detectedVersion !== '37.0.0') versions.push('37.0.0');
+            if (detectedVersion !== '39.0.0') versions.push('39.0.0');
+            return versions;
         } else {
             // VS Code versions (typically newer)
-            return [
-                '39.0.0',        // Electron 39 (VS Code 1.93+)
-                '37.0.0',        // Electron 37 (fallback)
-            ];
+            const versions = [detectedVersion];
+            if (detectedVersion !== '39.0.0') versions.push('39.0.0');
+            if (detectedVersion !== '37.0.0') versions.push('37.0.0');
+            return versions;
         }
     }
 
@@ -188,15 +191,24 @@ export class SqliteLoader {
         console.log(`Looking for binary: platform=${platform}, arch=${arch}`);
 
         // Try to find a matching binary for current platform/arch and electron version
+        // Test compatibility after copying each binary
         for (const version of versionsToTry) {
             // New naming convention: better_sqlite3-electron-{version}-{platform}-{arch}.node
             const binaryName = `better_sqlite3-electron-${version}-${platform}-${arch}.node`;
             const binaryPath = path.join(binaryDir, binaryName);
 
             if (fs.existsSync(binaryPath)) {
-                console.log(`✅ Using pre-packaged binary: ${binaryName}`);
+                console.log(`✅ Found pre-packaged binary: ${binaryName}, testing compatibility...`);
                 fs.copyFileSync(binaryPath, targetPath);
-                return;
+                
+                // Test if this binary is actually compatible
+                if (await this.testBinary()) {
+                    console.log(`✅ Binary ${binaryName} is compatible!`);
+                    return;
+                } else {
+                    console.log(`⚠️  Binary ${binaryName} is not compatible, trying next version...`);
+                    // Continue to next version
+                }
             }
         }
 
@@ -206,9 +218,17 @@ export class SqliteLoader {
             const oldBinaryPath = path.join(binaryDir, oldBinaryName);
 
             if (fs.existsSync(oldBinaryPath)) {
-                console.log(`✅ Using legacy pre-packaged binary: ${oldBinaryName}`);
+                console.log(`✅ Found legacy pre-packaged binary: ${oldBinaryName}, testing compatibility...`);
                 fs.copyFileSync(oldBinaryPath, targetPath);
-                return;
+                
+                // Test if this binary is actually compatible
+                if (await this.testBinary()) {
+                    console.log(`✅ Legacy binary ${oldBinaryName} is compatible!`);
+                    return;
+                } else {
+                    console.log(`⚠️  Legacy binary ${oldBinaryName} is not compatible, trying next version...`);
+                    // Continue to next version
+                }
             }
         }
 
@@ -220,11 +240,19 @@ export class SqliteLoader {
                 f.includes(`-${platform}-${arch}.node`)
             ).sort().reverse(); // Prefer newer versions
 
-            if (platformBinaries.length > 0) {
-                const bestMatch = platformBinaries[0];
-                console.log(`✅ Using best available platform binary: ${bestMatch}`);
-                fs.copyFileSync(path.join(binaryDir, bestMatch), targetPath);
-                return;
+            for (const binaryName of platformBinaries) {
+                const binaryPath = path.join(binaryDir, binaryName);
+                console.log(`✅ Trying platform binary: ${binaryName}, testing compatibility...`);
+                fs.copyFileSync(binaryPath, targetPath);
+                
+                // Test if this binary is actually compatible
+                if (await this.testBinary()) {
+                    console.log(`✅ Platform binary ${binaryName} is compatible!`);
+                    return;
+                } else {
+                    console.log(`⚠️  Platform binary ${binaryName} is not compatible, trying next...`);
+                    // Continue to next binary
+                }
             }
         }
 
@@ -233,7 +261,9 @@ export class SqliteLoader {
         // If the default binary exists, check if it's compatible
         if (fs.existsSync(targetPath)) {
             console.log('Using existing default binary as fallback');
-            return;
+            if (await this.testBinary()) {
+                return;
+            }
         }
 
         throw new Error(
