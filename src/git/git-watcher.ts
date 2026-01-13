@@ -54,6 +54,8 @@ export class GitWatcher implements vscode.Disposable {
      */
     async init(): Promise<boolean> {
         try {
+            console.log('[GitWatcher] Starting initialization...');
+            
             // Get VS Code Git Extension API
             const gitExtension = vscode.extensions.getExtension('vscode.git');
             if (!gitExtension) {
@@ -61,6 +63,8 @@ export class GitWatcher implements vscode.Disposable {
                 return false;
             }
 
+            console.log('[GitWatcher] Git extension found, activating...');
+            
             // Ensure extension is activated
             if (!gitExtension.isActive) {
                 await gitExtension.activate();
@@ -78,8 +82,12 @@ export class GitWatcher implements vscode.Disposable {
                 return false;
             }
 
+            console.log(`[GitWatcher] Git API obtained, found ${this.gitApi.repositories?.length || 0} repositories from VS Code API`);
+
             // Watch existing repositories from VS Code Git API
             for (const repo of this.gitApi.repositories) {
+                const repoPath = repo.rootUri?.fsPath || 'unknown';
+                console.log('[GitWatcher] Watching repository from VS Code API:', repoPath);
                 this.watchRepository(repo);
             }
 
@@ -96,14 +104,15 @@ export class GitWatcher implements vscode.Disposable {
             );
 
             // Scan for Git repositories in subdirectories
+            console.log('[GitWatcher] Starting subdirectory scan...');
             await this.scanForSubdirectoryRepos();
 
             this.isInitialized = true;
             const totalRepos = this.gitApi.repositories.length + this.discoveredRepos.size;
-            console.log(`[GitWatcher] Initialized, watching ${totalRepos} repositories (${this.gitApi.repositories.length} from VS Code API, ${this.discoveredRepos.size} discovered)`);
+            console.log(`[GitWatcher] ✅ Initialized successfully! Watching ${totalRepos} repositories (${this.gitApi.repositories.length} from VS Code API, ${this.discoveredRepos.size} discovered)`);
             return true;
         } catch (error) {
-            console.error('[GitWatcher] Failed to initialize:', error);
+            console.error('[GitWatcher] ❌ Failed to initialize:', error);
             return false;
         }
     }
@@ -395,27 +404,39 @@ export class GitWatcher implements vscode.Disposable {
     private async scanForSubdirectoryRepos(): Promise<void> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
+            console.log('[GitWatcher] No workspace folders found, skipping subdirectory scan');
             return;
         }
 
+        console.log(`[GitWatcher] Scanning ${workspaceFolders.length} workspace folder(s) for Git repositories...`);
+
         for (const folder of workspaceFolders) {
             const rootPath = folder.uri.fsPath;
+            console.log(`[GitWatcher] Scanning workspace folder: ${rootPath}`);
             
             // Check if root itself is a git repo (already handled by VS Code API)
-            const rootIsGit = fs.existsSync(path.join(rootPath, '.git'));
+            const gitDir = path.join(rootPath, '.git');
+            const rootIsGit = fs.existsSync(gitDir);
+            console.log(`[GitWatcher] Root directory ${rootIsGit ? 'IS' : 'is NOT'} a Git repository (${gitDir})`);
+            
             if (rootIsGit) {
+                console.log('[GitWatcher] Root is a Git repo, skipping subdirectory scan for this folder');
                 continue; // Skip, already handled
             }
 
             // Scan subdirectories for Git repositories
+            console.log('[GitWatcher] Starting recursive scan (max depth: 3)...');
             const foundRepos = this.findGitReposInDirectory(rootPath, 0, 3); // Max depth 3, max 3 levels deep
+            console.log(`[GitWatcher] Found ${foundRepos.length} Git repository(ies) in subdirectories:`, foundRepos);
             
             for (const repoPath of foundRepos) {
                 if (!this.discoveredRepos.has(repoPath)) {
-                    console.log('[GitWatcher] Discovered Git repository in subdirectory:', repoPath);
+                    console.log('[GitWatcher] ✨ Discovered new Git repository in subdirectory:', repoPath);
                     this.discoveredRepos.add(repoPath);
                     await this.watchDiscoveredRepo(repoPath);
                     this.emitNewRepository(repoPath);
+                } else {
+                    console.log('[GitWatcher] Repository already discovered, skipping:', repoPath);
                 }
             }
         }
@@ -428,36 +449,48 @@ export class GitWatcher implements vscode.Disposable {
         const repos: string[] = [];
         
         if (currentDepth >= maxDepth) {
+            console.log(`[GitWatcher] Max depth (${maxDepth}) reached at: ${dirPath}`);
             return repos;
         }
 
+        console.log(`[GitWatcher] Scanning directory (depth ${currentDepth}/${maxDepth}): ${dirPath}`);
+
         try {
             const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            console.log(`[GitWatcher] Found ${entries.length} entries in ${dirPath}`);
             
             for (const entry of entries) {
                 // Skip hidden directories and common ignore patterns
                 if (entry.name.startsWith('.') && entry.name !== '.git') {
+                    console.log(`[GitWatcher] Skipping hidden directory: ${entry.name}`);
                     continue;
                 }
                 
                 // Skip common directories that shouldn't contain repos
                 const skipDirs = ['node_modules', 'dist', 'build', 'target', 'out', '.vscode', '.idea'];
                 if (skipDirs.includes(entry.name)) {
+                    console.log(`[GitWatcher] Skipping ignored directory: ${entry.name}`);
                     continue;
                 }
 
                 if (entry.isDirectory()) {
                     const subPath = path.join(dirPath, entry.name);
+                    console.log(`[GitWatcher] Checking subdirectory: ${subPath}`);
                     
                     // Check if this directory is a Git repository
                     const gitDir = path.join(subPath, '.git');
                     if (fs.existsSync(gitDir)) {
                         const gitStat = fs.statSync(gitDir);
                         if (gitStat.isDirectory()) {
+                            console.log(`[GitWatcher] ✅ Found Git repository: ${subPath}`);
                             repos.push(subPath);
                             // Don't recurse into a Git repo's subdirectories
                             continue;
+                        } else {
+                            console.log(`[GitWatcher] .git exists but is not a directory: ${gitDir}`);
                         }
+                    } else {
+                        console.log(`[GitWatcher] No .git directory found in: ${subPath}`);
                     }
                     
                     // Recursively search subdirectories
@@ -467,9 +500,10 @@ export class GitWatcher implements vscode.Disposable {
             }
         } catch (error) {
             // Ignore permission errors or other filesystem errors
-            console.debug('[GitWatcher] Error scanning directory:', dirPath, error);
+            console.error(`[GitWatcher] ❌ Error scanning directory ${dirPath}:`, error);
         }
 
+        console.log(`[GitWatcher] Completed scan of ${dirPath}, found ${repos.length} repository(ies)`);
         return repos;
     }
 
@@ -477,6 +511,8 @@ export class GitWatcher implements vscode.Disposable {
      * Watch a discovered Git repository (not found by VS Code Git API)
      */
     private async watchDiscoveredRepo(repoPath: string): Promise<void> {
+        console.log(`[GitWatcher] Setting up watch for discovered repo: ${repoPath}`);
+        
         // Try to get the repository from VS Code Git API
         // Sometimes VS Code might discover it later, so we check
         let repo: any = null;
@@ -486,32 +522,40 @@ export class GitWatcher implements vscode.Disposable {
 
         if (repo) {
             // VS Code API found it, use the standard watch method
+            console.log(`[GitWatcher] Repository found in VS Code API, using standard watch method: ${repoPath}`);
             this.watchRepository(repo);
             return;
         }
 
         // VS Code API doesn't have it, use file system watching + polling
-        console.log('[GitWatcher] Watching discovered repo with file system watcher:', repoPath);
+        console.log(`[GitWatcher] Repository not in VS Code API, using file system watcher + polling: ${repoPath}`);
         
         // Get initial HEAD
         const initialHead = this.getCurrentHead(repoPath);
+        console.log(`[GitWatcher] Initial HEAD for ${repoPath}: ${initialHead?.substring(0, 7) || 'null'}`);
         if (initialHead) {
             this.lastHeadCommit.set(repoPath, initialHead);
         }
 
         // Watch .git/HEAD file for changes
         const headFile = path.join(repoPath, '.git', 'HEAD');
+        console.log(`[GitWatcher] Checking HEAD file: ${headFile}, exists: ${fs.existsSync(headFile)}`);
+        
         if (fs.existsSync(headFile)) {
             const watcher = vscode.workspace.createFileSystemWatcher(
                 new vscode.RelativePattern(vscode.Uri.file(repoPath), '.git/HEAD')
             );
             
             watcher.onDidChange(async () => {
+                console.log(`[GitWatcher] HEAD file changed for: ${repoPath}`);
                 await this.checkDiscoveredRepoChanges(repoPath);
             });
             
             this.fileWatchers.set(repoPath, watcher);
             this.disposables.push(watcher);
+            console.log(`[GitWatcher] File system watcher created for: ${repoPath}`);
+        } else {
+            console.warn(`[GitWatcher] ⚠️ HEAD file not found: ${headFile}`);
         }
 
         // Also poll periodically (every 5 seconds) as a fallback
@@ -520,6 +564,7 @@ export class GitWatcher implements vscode.Disposable {
         }, 5000);
         
         this.pollIntervals.set(repoPath, pollInterval);
+        console.log(`[GitWatcher] Polling interval set up for: ${repoPath} (every 5 seconds)`);
     }
 
     /**
@@ -529,22 +574,36 @@ export class GitWatcher implements vscode.Disposable {
         const currentHead = this.getCurrentHead(repoPath);
         const lastHead = this.lastHeadCommit.get(repoPath);
 
+        console.log(`[GitWatcher] Checking changes for ${repoPath}: lastHead=${lastHead?.substring(0, 7) || 'null'}, currentHead=${currentHead?.substring(0, 7) || 'null'}`);
+
         if (currentHead && currentHead !== lastHead) {
-            console.log('[GitWatcher] HEAD changed in discovered repo:', repoPath, lastHead?.substring(0, 7), '->', currentHead.substring(0, 7));
+            console.log(`[GitWatcher] 🔄 HEAD changed in discovered repo: ${repoPath}, ${lastHead?.substring(0, 7) || 'null'} -> ${currentHead.substring(0, 7)}`);
             
             if (lastHead) {
                 // Check if this is a new commit
+                console.log(`[GitWatcher] Checking if this is a new commit...`);
                 const isNewCommit = await this.isNewCommit(repoPath, lastHead, currentHead);
+                console.log(`[GitWatcher] Is new commit: ${isNewCommit}`);
                 
                 if (isNewCommit) {
+                    console.log(`[GitWatcher] Building commit event for: ${repoPath}`);
                     const event = await this.buildCommitEvent(repoPath, currentHead);
                     if (event) {
+                        console.log(`[GitWatcher] ✅ Commit event built successfully, emitting...`);
                         this.emitEvent(event);
+                    } else {
+                        console.warn(`[GitWatcher] ⚠️ Failed to build commit event for: ${repoPath}`);
                     }
+                } else {
+                    console.log(`[GitWatcher] Not a new commit (might be checkout/rebase/etc.)`);
                 }
+            } else {
+                console.log(`[GitWatcher] No previous HEAD, just recording current HEAD`);
             }
             
             this.lastHeadCommit.set(repoPath, currentHead);
+        } else {
+            console.log(`[GitWatcher] No HEAD change detected for: ${repoPath}`);
         }
     }
 
@@ -555,28 +614,44 @@ export class GitWatcher implements vscode.Disposable {
         try {
             // Try reading .git/HEAD directly
             const headFile = path.join(repoPath, '.git', 'HEAD');
+            console.log(`[GitWatcher] Reading HEAD from: ${headFile}`);
+            
             if (fs.existsSync(headFile)) {
                 const headContent = fs.readFileSync(headFile, 'utf8').trim();
+                console.log(`[GitWatcher] HEAD file content: ${headContent}`);
                 
                 // If it's a ref, resolve it
                 if (headContent.startsWith('ref: ')) {
                     const refPath = headContent.substring(5);
                     const refFile = path.join(repoPath, '.git', refPath);
+                    console.log(`[GitWatcher] Resolving ref: ${refFile}`);
+                    
                     if (fs.existsSync(refFile)) {
-                        return fs.readFileSync(refFile, 'utf8').trim();
+                        const sha = fs.readFileSync(refFile, 'utf8').trim();
+                        console.log(`[GitWatcher] Resolved SHA: ${sha.substring(0, 7)}`);
+                        return sha;
+                    } else {
+                        console.warn(`[GitWatcher] ⚠️ Ref file not found: ${refFile}`);
                     }
                 } else {
                     // Direct SHA
+                    console.log(`[GitWatcher] Direct SHA found: ${headContent.substring(0, 7)}`);
                     return headContent;
                 }
+            } else {
+                console.warn(`[GitWatcher] ⚠️ HEAD file not found: ${headFile}`);
             }
             
             // Fallback to git command
-            return execSync(
+            console.log(`[GitWatcher] Falling back to git rev-parse HEAD`);
+            const sha = execSync(
                 'git rev-parse HEAD',
                 { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
             ).trim();
-        } catch {
+            console.log(`[GitWatcher] Git command returned SHA: ${sha.substring(0, 7)}`);
+            return sha;
+        } catch (error) {
+            console.error(`[GitWatcher] ❌ Error getting HEAD for ${repoPath}:`, error);
             return null;
         }
     }
