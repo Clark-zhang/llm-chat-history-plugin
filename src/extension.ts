@@ -23,6 +23,7 @@ import { CloudSyncManager } from './cloud/cloud-sync';
 import { AutomationStatusProvider, AccountStatusProvider } from './sidebar/status-view';
 import { TelemetryManager, TelemetryEvents } from './telemetry/telemetry';
 import { parseMarkdown, ParsedSession } from './markdown-parser';
+import { GitHubLinkManager } from './git/github-link-manager';
 
 /**
  * 扩展激活时调用
@@ -459,6 +460,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // 导出 cloudSync 供 watcher 使用
     (global as any).__cloudSyncManager = cloudSync;
+    
+    // 初始化 GitHub Link Manager (Git 集成)
+    console.log('[Extension] Initializing GitHub Link Manager...');
+    const githubLinkManager = new GitHubLinkManager(context);
+    const gitInitSuccess = await githubLinkManager.init();
+    if (gitInitSuccess) {
+        console.log('[Extension] ✅ GitHub Link Manager initialized successfully');
+        context.subscriptions.push(githubLinkManager);
+        
+        // 导出供其他模块使用（例如在会话保存时更新当前会话）
+        (global as any).__githubLinkManager = githubLinkManager;
+    } else {
+        console.log('[Extension] ⚠️ GitHub Link Manager initialization failed (Git extension may not be available)');
+    }
 
     // 注册命令：手动选择文件同步到云端
     const syncFilesCommand = vscode.commands.registerCommand(

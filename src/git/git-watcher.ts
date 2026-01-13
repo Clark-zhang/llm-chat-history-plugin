@@ -174,11 +174,17 @@ export class GitWatcher implements vscode.Disposable {
      * Check if the HEAD change represents a new commit
      */
     private async isNewCommit(repoPath: string, oldHead: string, newHead: string): Promise<boolean> {
+        // Verify this is a valid Git repo before executing commands
+        if (!this.isValidGitRepo(repoPath)) {
+            console.log(`[GitWatcher] Skipping isNewCommit check - not a valid Git repo: ${repoPath}`);
+            return false;
+        }
+
         try {
             // Check if oldHead is the parent of newHead
             const parentOutput = execSync(
                 `git log -1 --format="%P" ${newHead}`,
-                { cwd: repoPath, encoding: 'utf8' }
+                { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
             ).trim();
 
             const parents = parentOutput.split(' ').filter(p => p);
@@ -191,7 +197,7 @@ export class GitWatcher implements vscode.Disposable {
             // Also check if this commit was just created (within last 10 seconds)
             const commitTime = execSync(
                 `git log -1 --format="%ct" ${newHead}`,
-                { cwd: repoPath, encoding: 'utf8' }
+                { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
             ).trim();
             
             const commitTimestamp = parseInt(commitTime, 10) * 1000;
@@ -200,7 +206,9 @@ export class GitWatcher implements vscode.Disposable {
             
             // If commit was made within last 60 seconds, consider it new
             return timeDiff < 60000;
-        } catch {
+        } catch (error) {
+            // Silently handle errors - this is expected in some edge cases
+            console.debug(`[GitWatcher] Error checking if new commit (this is OK):`, error);
             return false;
         }
     }
@@ -209,11 +217,17 @@ export class GitWatcher implements vscode.Disposable {
      * Build a commit event from repository information
      */
     private async buildCommitEvent(repoPath: string, sha: string): Promise<GitEvent | null> {
+        // Verify this is a valid Git repo before executing commands
+        if (!this.isValidGitRepo(repoPath)) {
+            console.warn(`[GitWatcher] Cannot build commit event - not a valid Git repo: ${repoPath}`);
+            return null;
+        }
+
         try {
             // Get commit details
             const logOutput = execSync(
                 `git log -1 --format="%H|%s|%an|%aI" ${sha}`,
-                { cwd: repoPath, encoding: 'utf8' }
+                { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
             ).trim();
 
             const [commitSha, message, author, time] = logOutput.split('|');
@@ -310,12 +324,19 @@ export class GitWatcher implements vscode.Disposable {
      * Get current branch name
      */
     private getCurrentBranch(repoPath: string): string {
+        // Verify this is a valid Git repo before executing commands
+        if (!this.isValidGitRepo(repoPath)) {
+            return '';
+        }
+
         try {
             return execSync(
                 'git rev-parse --abbrev-ref HEAD',
                 { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
             ).trim();
-        } catch {
+        } catch (error) {
+            // Silently handle errors
+            console.debug(`[GitWatcher] Error getting branch name (this is OK):`, error);
             return '';
         }
     }
@@ -608,10 +629,32 @@ export class GitWatcher implements vscode.Disposable {
     }
 
     /**
+     * Check if a directory is a valid Git repository
+     */
+    private isValidGitRepo(repoPath: string): boolean {
+        const gitDir = path.join(repoPath, '.git');
+        if (!fs.existsSync(gitDir)) {
+            return false;
+        }
+        try {
+            const stat = fs.statSync(gitDir);
+            return stat.isDirectory();
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Get current HEAD commit SHA from a repository
      */
     private getCurrentHead(repoPath: string): string | null {
         try {
+            // First verify this is a valid Git repository
+            if (!this.isValidGitRepo(repoPath)) {
+                console.log(`[GitWatcher] Not a valid Git repository: ${repoPath}`);
+                return null;
+            }
+
             // Try reading .git/HEAD directly
             const headFile = path.join(repoPath, '.git', 'HEAD');
             console.log(`[GitWatcher] Reading HEAD from: ${headFile}`);
@@ -642,16 +685,23 @@ export class GitWatcher implements vscode.Disposable {
                 console.warn(`[GitWatcher] ⚠️ HEAD file not found: ${headFile}`);
             }
             
-            // Fallback to git command
+            // Fallback to git command (only if we know it's a Git repo)
             console.log(`[GitWatcher] Falling back to git rev-parse HEAD`);
-            const sha = execSync(
-                'git rev-parse HEAD',
-                { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-            ).trim();
-            console.log(`[GitWatcher] Git command returned SHA: ${sha.substring(0, 7)}`);
-            return sha;
+            try {
+                const sha = execSync(
+                    'git rev-parse HEAD',
+                    { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+                ).trim();
+                console.log(`[GitWatcher] Git command returned SHA: ${sha.substring(0, 7)}`);
+                return sha;
+            } catch (gitError) {
+                // Silently handle git command errors - this is expected in some cases
+                console.debug(`[GitWatcher] Git command failed (this is OK): ${gitError}`);
+                return null;
+            }
         } catch (error) {
-            console.error(`[GitWatcher] ❌ Error getting HEAD for ${repoPath}:`, error);
+            // Silently handle all errors to avoid polluting console
+            console.debug(`[GitWatcher] Error getting HEAD for ${repoPath}:`, error);
             return null;
         }
     }
