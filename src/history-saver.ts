@@ -36,10 +36,20 @@ export class HistorySaver {
             throw error;
         }
 
-        // 生成文件名
-        const filename = this.generateFilename(composer);
-        const filepath = path.join(this.historyDir, filename);
-        console.log(`[HistorySaver] Target filepath: ${filepath}`);
+        // 先根据 session id 查找已存在的文件
+        const existingFile = await this.findExistingFileBySessionId(composer.composerId);
+        
+        let filepath: string;
+        if (existingFile) {
+            // 如果找到已存在的文件，使用该文件路径
+            filepath = existingFile;
+            console.log(`[HistorySaver] Found existing file by session ID: ${filepath}`);
+        } else {
+            // 如果没有找到，生成新文件名
+            const filename = this.generateFilename(composer);
+            filepath = path.join(this.historyDir, filename);
+            console.log(`[HistorySaver] Target filepath: ${filepath}`);
+        }
 
         // 检查是否需要更新
         const shouldSave = await this.shouldSave(filepath, markdown);
@@ -94,6 +104,80 @@ export class HistorySaver {
             .replace(/\s+/g, '-')
             .toLowerCase()
             .substring(0, 50);
+    }
+    
+    /**
+     * 根据 session id 查找已存在的文件
+     * 支持所有 agent 的文件格式：
+     * 1. 注释格式: <!-- source: sessionId --> 或 <!-- ... Session sessionId ... -->
+     * 2. Markdown 元数据: **Session ID**: `sessionId` 或 **会话ID**: `sessionId`
+     * 3. YAML front matter: id: sessionId (在 YAML 块中)
+     */
+    private async findExistingFileBySessionId(sessionId: string): Promise<string | null> {
+        try {
+            const files = await fs.readdir(this.historyDir);
+            
+            for (const file of files) {
+                if (!file.endsWith('.md')) {
+                    continue;
+                }
+                
+                const filepath = path.join(this.historyDir, file);
+                try {
+                    // 读取文件内容（读取前30行应该足够包含所有头部信息）
+                    const content = await fs.readFile(filepath, 'utf-8');
+                    const lines = content.split('\n');
+                    const headerLines = lines.slice(0, 30);
+                    const headerContent = headerLines.join('\n');
+                    
+                    // 方法1: 匹配注释格式
+                    // 支持格式：
+                    // - <!-- GitHub Copilot Chat: sessionId -->
+                    // - <!-- Copilot Session sessionId -->
+                    // - <!-- Cursor Session sessionId -->
+                    // - <!-- Cline Task: sessionId -->
+                    // - <!-- Kiro Session sessionId -->
+                    const colonMatch = headerContent.match(/<!--[^>]*:\s*([a-zA-Z0-9\-_]+)/);
+                    const sessionMatch = headerContent.match(/<!--[^>]*Session[:\s]+([a-zA-Z0-9\-_]+)/i);
+                    if ((colonMatch && colonMatch[1] === sessionId) || 
+                        (sessionMatch && sessionMatch[1] === sessionId)) {
+                        console.log(`[HistorySaver] Found existing file with session ID ${sessionId} (comment format): ${filepath}`);
+                        return filepath;
+                    }
+                    
+                    // 方法2: 匹配 Markdown 元数据格式
+                    // 支持格式：
+                    // - **Session ID**: `sessionId`
+                    // - **会话ID**: `sessionId`
+                    const mdMetaMatch = headerContent.match(/\*\*(?:Session\s*ID|会话ID)\*\*[:\s]*`([^`]+)`/i);
+                    if (mdMetaMatch && mdMetaMatch[1] === sessionId) {
+                        console.log(`[HistorySaver] Found existing file with session ID ${sessionId} (markdown metadata): ${filepath}`);
+                        return filepath;
+                    }
+                    
+                    // 方法3: 匹配 YAML front matter 格式
+                    // 支持格式：
+                    // ---
+                    // id: sessionId
+                    // ---
+                    if (headerContent.includes('---')) {
+                        const yamlMatch = headerContent.match(/^---[\s\S]*?id:\s*([a-zA-Z0-9\-_]+)[\s\S]*?---/m);
+                        if (yamlMatch && yamlMatch[1] === sessionId) {
+                            console.log(`[HistorySaver] Found existing file with session ID ${sessionId} (YAML front matter): ${filepath}`);
+                            return filepath;
+                        }
+                    }
+                } catch (error) {
+                    // 读取文件失败，跳过
+                    continue;
+                }
+            }
+        } catch (error) {
+            // 目录不存在或读取失败，返回 null
+            console.log(`[HistorySaver] Error finding existing file: ${error}`);
+        }
+        
+        return null;
     }
     
     /**

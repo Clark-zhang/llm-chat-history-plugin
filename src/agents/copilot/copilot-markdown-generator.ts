@@ -102,7 +102,7 @@ export class CopilotMarkdownGenerator {
     private generateHeader(conversation: CopilotStorageData): string {
         const locale = this.getLocale();
         const source = locale === 'zh' ? 'GitHub Copilot Chat' : 'GitHub Copilot Chat';
-        const sessionLabel = locale === 'zh' ? 'GitHub Copilot Chat 会话' : 'GitHub Copilot Chat Session';
+        const sessionLabel = locale === 'zh' ? 'Copilot 会话' : 'Copilot Session';
         const date = this.formatDate(new Date(conversation.createdAt).toISOString());
         
         return `<!-- ${this.t('markdown.generatedBy')} -->

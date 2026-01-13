@@ -2,6 +2,9 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.5.7] - 2026-01-13
+- fix copilot multiple files
+
 ## [0.5.6] - 2026-01-13
 - fix sub-directory as git repo
 

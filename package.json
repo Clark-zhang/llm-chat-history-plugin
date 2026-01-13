@@ -2,7 +2,7 @@
   "name": "llm-chat-history",
   "displayName": "LLM Chat History - Export, explore and share your AI chat history",
   "description": "Export, explore and share your AI chat history",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "publisher": "ClarkZhang",
   "author": {
     "name": "ClarkZhang",
