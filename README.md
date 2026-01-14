@@ -5,7 +5,8 @@
 ## DISCLAIM
 - works on **mac-cursor**
 - possibly works on windows/linux
-- possibly works with Amazon Kiro and VS Code coding extensions (Copilot, Cline, Kilo, Blackbox AI). 
+- possibly works with **Amazon Kiro** and **VS Code** coding extensions (**Copilot, Cline, Kilo, Blackbox AI**).
+- **Non-logged-in users**: Chat history is only saved locally and **will NOT be synced to the cloud**. Please log in to your account if you need cloud sync functionality. 
 
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/ClarkZhang.llm-chat-history?color=blue&label=Version)](https://marketplace.visualstudio.com/items?itemName=ClarkZhang.llm-chat-history)

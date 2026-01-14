@@ -6,7 +6,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ComposerData } from './types';
-import { trackEventIfLoggedIn, TelemetryEvents } from './telemetry/telemetry';
+import { trackEvent, TelemetryEvents } from './telemetry/telemetry';
 
 export class HistorySaver {
     private historyDir: string;
@@ -60,8 +60,8 @@ export class HistorySaver {
                 await fs.writeFile(filepath, markdown, 'utf-8');
                 console.log(`[HistorySaver] ✓ Saved successfully: ${filepath}`);
                 
-                // 上报文件保存事件（仅登录用户）
-                trackEventIfLoggedIn(TelemetryEvents.FILE_SAVED_LOCALLY, {
+                // 上报文件保存事件（登录用户和匿名用户都会上报）
+                trackEvent(TelemetryEvents.FILE_SAVED_LOCALLY, {
                     source: this.source,
                     session_id: composer.composerId,
                 });
