@@ -23,18 +23,20 @@ export class ClineReader {
     /**
      * 获取所有任务
      */
-    getAllTasks(): ClineTask[] {
+    async getAllTasks(): Promise<ClineTask[]> {
         // 读取任务历史索引
         const historyPath = path.join(this.storageDir, 'state', 'taskHistory.json');
         
-        if (!fs.existsSync(historyPath)) {
+        try {
+            await fs.promises.access(historyPath);
+        } catch {
             console.warn('[Cline] Task history file not found:', historyPath);
             return [];
         }
 
         let taskItems: ClineTaskHistory['tasks'];
         try {
-            const content = fs.readFileSync(historyPath, 'utf-8');
+            const content = await fs.promises.readFile(historyPath, 'utf-8');
             const parsed = JSON.parse(content);
 
             if (Array.isArray(parsed)) {
@@ -57,7 +59,7 @@ export class ClineReader {
         const tasks: ClineTask[] = [];
 
         for (const taskItem of taskItems) {
-            const task = this.getTask(taskItem.id);
+            const task = await this.getTask(taskItem.id);
             if (task) {
                 tasks.push(task);
             }
@@ -69,34 +71,39 @@ export class ClineReader {
     /**
      * 获取指定任务
      */
-    getTask(taskId: string): ClineTask | null {
+    async getTask(taskId: string): Promise<ClineTask | null> {
         const taskDir = path.join(this.tasksDir, taskId);
         
-        if (!fs.existsSync(taskDir)) {
+        try {
+            const dirStat = await fs.promises.stat(taskDir);
+            if (!dirStat.isDirectory()) {
+                return null;
+            }
+        } catch {
             return null;
         }
         
         try {
             // 首先读取 UI messages（因为metadata处理需要用到它）
             const uiMessagesPath = path.join(taskDir, 'ui_messages.json');
-            const uiMessages: ClineUIMessages = fs.existsSync(uiMessagesPath)
-                ? this.parseClineDataFile(uiMessagesPath)
-                : { messages: [] };
+            const uiMessages: ClineUIMessages = await this.parseClineDataFile(uiMessagesPath);
 
             // 读取 metadata
             const metadataPath = path.join(taskDir, 'task_metadata.json');
-            const rawMetadata = fs.existsSync(metadataPath)
-                ? JSON.parse(fs.readFileSync(metadataPath, 'utf-8'))
-                : {};
+            let rawMetadata: any = {};
+            try {
+                const metadataContent = await fs.promises.readFile(metadataPath, 'utf-8');
+                rawMetadata = JSON.parse(metadataContent);
+            } catch {
+                rawMetadata = {};
+            }
 
             // 处理cline的metadata格式，转换为标准格式
             const metadata: ClineTaskMetadata = this.processClineMetadata(rawMetadata, taskId, uiMessages);
 
             // 读取 API conversation
             const apiConvPath = path.join(taskDir, 'api_conversation_history.json');
-            const apiConversation: ClineApiConversation = fs.existsSync(apiConvPath)
-                ? this.parseClineDataFile(apiConvPath)
-                : { messages: [] };
+            const apiConversation: ClineApiConversation = await this.parseClineDataFile(apiConvPath);
             
             // 尝试读取工作区路径（可能在 UI messages 中）
             const workspaceRoot = this.extractWorkspaceRoot(uiMessages);
@@ -177,8 +184,13 @@ export class ClineReader {
     /**
      * 解析cline数据文件（支持直接数组和包装对象格式）
      */
-    private parseClineDataFile(filePath: string): any {
-        const content = fs.readFileSync(filePath, 'utf-8');
+    private async parseClineDataFile(filePath: string): Promise<any> {
+        let content: string;
+        try {
+            content = await fs.promises.readFile(filePath, 'utf-8');
+        } catch {
+            return { messages: [] };
+        }
         const parsed = JSON.parse(content);
 
         // 处理直接数组格式（cline的实际格式）

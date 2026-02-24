@@ -91,7 +91,7 @@ export function isGitCommitLinkEnabled(): boolean {
  * Write current session info to file for IPC with Git hook
  * Writes to: <workspacePath>/.llm-chat-history/config/current-session.json
  */
-export function writeSessionInfo(sessionId: string, workspacePath: string): void {
+export async function writeSessionInfo(sessionId: string, workspacePath: string): Promise<void> {
     const sessionInfo: SessionInfo = {
         sessionId,
         url: getDashboardUrl(sessionId),
@@ -103,11 +103,15 @@ export function writeSessionInfo(sessionId: string, workspacePath: string): void
         const filePath = getSessionFilePath(workspacePath);
         
         // Ensure config directory exists
-        if (!fs.existsSync(configDir)) {
-            fs.mkdirSync(configDir, { recursive: true });
+        try {
+            await fs.promises.mkdir(configDir, { recursive: true });
+        } catch (mkdirError: any) {
+            if (mkdirError?.code !== 'EEXIST') {
+                throw mkdirError;
+            }
         }
         
-        fs.writeFileSync(filePath, JSON.stringify(sessionInfo, null, 2), 'utf8');
+        await fs.promises.writeFile(filePath, JSON.stringify(sessionInfo, null, 2), 'utf8');
         console.log('[GitCommitLink] Session info written:', sessionId, 'at', filePath);
     } catch (error) {
         console.error('[GitCommitLink] Failed to write session info:', error);
@@ -511,13 +515,13 @@ export class GitCommitLinkManager implements vscode.Disposable {
         // Update session file periodically to keep it fresh
         this.sessionUpdateInterval = setInterval(() => {
             if (this.currentSessionId && this.currentWorkspacePath) {
-                writeSessionInfo(this.currentSessionId, this.currentWorkspacePath);
+                void writeSessionInfo(this.currentSessionId, this.currentWorkspacePath);
             }
         }, 60000); // Update every minute
         
         // Initial write if session exists
         if (this.currentSessionId && this.currentWorkspacePath) {
-            writeSessionInfo(this.currentSessionId, this.currentWorkspacePath);
+            void writeSessionInfo(this.currentSessionId, this.currentWorkspacePath);
         }
     }
     
@@ -548,7 +552,7 @@ export class GitCommitLinkManager implements vscode.Disposable {
         this.currentWorkspacePath = workspacePath;
         
         if (isGitCommitLinkEnabled() && sessionId && workspacePath) {
-            writeSessionInfo(sessionId, workspacePath);
+            void writeSessionInfo(sessionId, workspacePath);
             console.log('[GitCommitLinkManager] Session updated:', sessionId, 'for workspace:', workspacePath);
         } else if (!sessionId && workspacePath) {
             clearSessionInfo(workspacePath);

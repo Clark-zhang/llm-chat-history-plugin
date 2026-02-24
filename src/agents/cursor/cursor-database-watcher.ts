@@ -32,6 +32,9 @@ export class DatabaseWatcher {
     private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private cloudSyncTimer: NodeJS.Timeout | null = null;
+    private localSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private cloudSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private syncInProgress: boolean = false;
     private workspaceRoot: string;
     private workspaceFilter: WorkspaceFilter;
     private t: Translator;
@@ -68,22 +71,22 @@ export class DatabaseWatcher {
             this.scheduleSync();
         });
 
-        // 3. 定时轮询本地保存（每 30 秒）
-        setInterval(() => {
+        // 3. 定时轮询本地保存（每 60 秒，降低扩展宿主压力）
+        this.localSyncIntervalId = setInterval(() => {
             this.syncNow();
-        }, 30000); // 30 秒
+        }, 60000);
 
-        // 4. 定时云端同步（每 60 秒）
-        setInterval(() => {
+        // 4. 定时云端同步（每 90 秒）
+        this.cloudSyncIntervalId = setInterval(() => {
             this.cloudSyncNow();
-        }, 60000); // 60 秒
+        }, 90000);
 
-        // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
+        // 5. 启动时延迟 8 秒执行一次云端同步（给本地同步时间收集数据）
         setTimeout(() => {
             this.cloudSyncNow();
-        }, 5000);
+        }, 8000);
 
-        console.log('Database watcher started (local: 30s, cloud: 60s)');
+        console.log('Database watcher started (local: 60s, cloud: 90s)');
     }
 
     /**
@@ -95,12 +98,23 @@ export class DatabaseWatcher {
 
         if (this.watcher) {
             this.watcher.close();
+            this.watcher = null;
         }
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
+            this.debounceTimer = null;
         }
         if (this.cloudSyncTimer) {
             clearTimeout(this.cloudSyncTimer);
+            this.cloudSyncTimer = null;
+        }
+        if (this.localSyncIntervalId !== null) {
+            clearInterval(this.localSyncIntervalId);
+            this.localSyncIntervalId = null;
+        }
+        if (this.cloudSyncIntervalId !== null) {
+            clearInterval(this.cloudSyncIntervalId);
+            this.cloudSyncIntervalId = null;
         }
     }
 
@@ -119,26 +133,28 @@ export class DatabaseWatcher {
     }
 
     /**
-     * 立即执行本地同步
+     * 立即执行本地同步（防重入：若已有同步在进行则跳过，避免阻塞扩展宿主）
      */
     syncNow(): void {
-        console.log('[Cursor:syncNow] ========== Starting sync ==========');
-        console.log(`[Cursor:syncNow] Database path: ${this.dbPath}`);
-        console.log(`[Cursor:syncNow] Workspace root: ${this.workspaceRoot}`);
-        
-        const now = Date.now();
-
-        // 避免过于频繁的同步
-        if (now - this.lastLocalSync < 1000) {
-            console.log('[Cursor:syncNow] Skipped: Too frequent (< 1s since last sync)');
+        if (this.syncInProgress) {
             return;
         }
-
+        const now = Date.now();
+        // 避免过于频繁的同步（至少间隔 15 秒，防止长时间占用扩展宿主）
+        if (now - this.lastLocalSync < 15000) {
+            return;
+        }
         this.lastLocalSync = now;
-
-        this.performLocalSync().catch(error => {
-            console.error('[Cursor:syncNow] Local sync failed:', error);
-            console.error('[Cursor:syncNow] Error stack:', error instanceof Error ? error.stack : 'N/A');
+        this.syncInProgress = true;
+        // 先让出事件循环，再执行重量级同步，减少对 Copilot/扩展宿主的卡顿
+        setImmediate(() => {
+            this.performLocalSync()
+                .catch(error => {
+                    console.error('[Cursor:syncNow] Local sync failed:', error);
+                })
+                .finally(() => {
+                    this.syncInProgress = false;
+                });
         });
     }
 
@@ -164,6 +180,9 @@ export class DatabaseWatcher {
      * 执行本地同步 - 保存到本地 Markdown 文件
      */
     private async performLocalSync(): Promise<void> {
+        // 先让出事件循环，避免长时间占用扩展宿主导致 Copilot/UI 卡顿
+        await new Promise<void>(r => setImmediate(r));
+
         console.log('[Cursor:performLocalSync] ========== Starting local sync ==========');
         let reader: CursorDatabaseReader;
 

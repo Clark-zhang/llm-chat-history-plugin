@@ -2,6 +2,10 @@
 
 All notable changes to the "LLM Chat History" extension will be documented in this file.
 
+## [0.5.10] - 2026-02-24
+- try to fix loading issue from Frank.
+- avoid open to many browser tabs
+
 ## [0.5.7] - 2026-01-13
 - fix copilot multiple files
 

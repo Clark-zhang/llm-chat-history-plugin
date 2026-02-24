@@ -17,8 +17,10 @@ export class CopilotReader {
     /**
      * 获取所有会话
      */
-    getAllConversations(): CopilotStorageData[] {
-        if (!fs.existsSync(this.workspaceStorageDir)) {
+    async getAllConversations(): Promise<CopilotStorageData[]> {
+        try {
+            await fs.promises.access(this.workspaceStorageDir);
+        } catch {
             console.warn('[Copilot] Workspace storage directory not found:', this.workspaceStorageDir);
             return [];
         }
@@ -27,11 +29,16 @@ export class CopilotReader {
         
         try {
             // 遍历所有 sessionId 目录
-            const sessionDirs = fs.readdirSync(this.workspaceStorageDir);
+            const sessionDirs = await fs.promises.readdir(this.workspaceStorageDir);
             
             for (const sessionId of sessionDirs) {
                 const sessionDir = path.join(this.workspaceStorageDir, sessionId);
-                const stat = fs.statSync(sessionDir);
+                let stat: fs.Stats;
+                try {
+                    stat = await fs.promises.stat(sessionDir);
+                } catch {
+                    continue;
+                }
                 
                 // 跳过非目录项
                 if (!stat.isDirectory()) {
@@ -44,7 +51,7 @@ export class CopilotReader {
                 }
                 
                 // 读取该 session 下的所有对话
-                const sessionConversations = this.readConversationsFromSession(sessionDir, sessionId);
+                const sessionConversations = await this.readConversationsFromSession(sessionDir, sessionId);
                 conversations.push(...sessionConversations);
             }
             
@@ -60,7 +67,7 @@ export class CopilotReader {
     /**
      * 从单个 session 目录读取所有对话
      */
-    private readConversationsFromSession(sessionDir: string, sessionId: string): CopilotStorageData[] {
+    private async readConversationsFromSession(sessionDir: string, sessionId: string): Promise<CopilotStorageData[]> {
         const conversations: CopilotStorageData[] = [];
         
         try {
@@ -68,65 +75,74 @@ export class CopilotReader {
             const workspaceJsonPath = path.join(sessionDir, 'workspace.json');
             let workspacePath: string | undefined;
             
-            if (fs.existsSync(workspaceJsonPath)) {
-                try {
-                    const workspaceData = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
-                    if (workspaceData.folder) {
-                        // 提取文件路径（去除 file:// 前缀）
-                        workspacePath = workspaceData.folder.replace(/^file:\/\//, '');
-                    }
-                } catch (error) {
+            try {
+                const workspaceContent = await fs.promises.readFile(workspaceJsonPath, 'utf-8');
+                const workspaceData = JSON.parse(workspaceContent);
+                if (workspaceData.folder) {
+                    // 提取文件路径（去除 file:// 前缀）
+                    workspacePath = workspaceData.folder.replace(/^file:\/\//, '');
+                }
+            } catch (error: any) {
+                if (error?.code !== 'ENOENT') {
                     console.warn(`[Copilot] Failed to parse workspace.json in ${sessionId}:`, error);
                 }
             }
             
             // 读取 chatSessions 目录下的所有 JSON 文件
             const chatSessionsDir = path.join(sessionDir, 'chatSessions');
-            if (fs.existsSync(chatSessionsDir)) {
-                const chatSessionFiles = fs.readdirSync(chatSessionsDir);
+            let chatSessionFiles: string[] = [];
+            try {
+                chatSessionFiles = await fs.promises.readdir(chatSessionsDir);
+            } catch (error: any) {
+                if (error?.code === 'ENOENT') {
+                    return conversations;
+                }
+                console.warn(`[Copilot] Failed to read chatSessions directory for ${sessionId}:`, error);
+                return conversations;
+            }
+            
+            for (const fileName of chatSessionFiles) {
+                if (!fileName.endsWith('.json')) {
+                    continue;
+                }
                 
-                for (const fileName of chatSessionFiles) {
-                    if (!fileName.endsWith('.json')) {
-                        continue;
-                    }
+                const chatSessionId = fileName.replace('.json', '');
+                const chatSessionPath = path.join(chatSessionsDir, fileName);
+                
+                try {
+                    const fileContent = await fs.promises.readFile(chatSessionPath, 'utf-8');
+                    const sessionData = JSON.parse(fileContent) as CopilotChatSession;
                     
-                    const chatSessionId = fileName.replace('.json', '');
-                    const chatSessionPath = path.join(chatSessionsDir, fileName);
+                    // 获取文件修改时间作为更新时间
+                    const stat = await fs.promises.stat(chatSessionPath);
+                    const updatedAt = stat.mtimeMs;
                     
-                    try {
-                        const sessionData = JSON.parse(fs.readFileSync(chatSessionPath, 'utf-8')) as CopilotChatSession;
-                        
-                        // 获取文件修改时间作为更新时间
-                        const stat = fs.statSync(chatSessionPath);
-                        const updatedAt = stat.mtimeMs;
-                        
-                        // 尝试从第一个请求获取创建时间
-                        const createdAt = sessionData.requests && sessionData.requests.length > 0
-                            ? updatedAt - (sessionData.requests.length * 60000) // 估算：每个请求间隔1分钟
-                            : updatedAt;
-                        
-                        // 生成标题（使用第一个请求的文本）
-                        let title = 'Untitled Conversation';
-                        if (sessionData.requests && sessionData.requests.length > 0) {
-                            const firstRequest = sessionData.requests[0];
-                            if (firstRequest.message && firstRequest.message.text) {
-                                const text = firstRequest.message.text.trim();
-                                title = text.substring(0, 100); // 限制长度
-                            }
+                    // 尝试从第一个请求获取创建时间
+                    const createdAt = sessionData.requests && sessionData.requests.length > 0
+                        ? updatedAt - (sessionData.requests.length * 60000) // 估算：每个请求间隔1分钟
+                        : updatedAt;
+                    
+                    // 生成标题（使用第一个请求的文本）
+                    let title = 'Untitled Conversation';
+                    if (sessionData.requests && sessionData.requests.length > 0) {
+                        const firstRequest = sessionData.requests[0];
+                        if (firstRequest.message && firstRequest.message.text) {
+                            const text = firstRequest.message.text.trim();
+                            title = text.substring(0, 100); // 限制长度
                         }
-                        
-                        conversations.push({
-                            id: chatSessionId,
-                            title,
-                            createdAt,
-                            updatedAt,
-                            session: sessionData,
-                            workspacePath,
-                            workspaceRoot: workspacePath
-                        });
-                    } catch (error) {
-                        console.warn(`[Copilot] Failed to parse chat session ${chatSessionId}:`, error);
                     }
+                    
+                    conversations.push({
+                        id: chatSessionId,
+                        title,
+                        createdAt,
+                        updatedAt,
+                        session: sessionData,
+                        workspacePath,
+                        workspaceRoot: workspacePath
+                    });
+                } catch (error) {
+                    console.warn(`[Copilot] Failed to parse chat session ${chatSessionId}:`, error);
                 }
             }
             

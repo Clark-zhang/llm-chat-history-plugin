@@ -562,15 +562,13 @@ export async function activate(context: vscode.ExtensionContext) {
                 'Disable Cloud Sync'
             ).then(async selection => {
                 if (selection === 'Login Now') {
-                    // 使用浏览器OAuth流程
+                    // 仅当用户点击时再打开浏览器，避免每次启动都自动开新 tab
                     await cloudSync.loginWithBrowser('login');
                 } else if (selection === 'Disable Cloud Sync') {
                     config.update('cloudSync.enabled', false, true);
                 }
             });
-            
-            // 同时自动触发浏览器登录
-            cloudSync.loginWithBrowser('login');
+            // 不再无条件调用 loginWithBrowser，避免「很多 Chrome tab」问题
         }
     };
 

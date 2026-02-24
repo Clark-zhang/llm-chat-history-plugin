@@ -31,6 +31,9 @@ export class BlackboxWatcher {
     private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private cloudSyncTimer: NodeJS.Timeout | null = null;
+    private localSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private cloudSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private syncInProgress: boolean = false;
     private workspaceRoot: string;
     private workspaceFilter: BlackboxWorkspaceFilter;
     private t: Translator;
@@ -81,28 +84,14 @@ export class BlackboxWatcher {
             trackError('watcher_error', String(error), 'blackboxai');
         });
 
-        // 定时轮询本地保存（每 30 秒）
-        setInterval(() => {
-            this.syncNow();
-        }, 30000);
-
-        // 定时云端同步（每 60 秒）
-        setInterval(() => {
-            this.cloudSyncNow();
-        }, 60000);
-
-        // 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
-        setTimeout(() => {
-            this.cloudSyncNow();
-        }, 5000);
-
-        console.log('[BlackboxAI] Watcher started (local: 30s, cloud: 60s)');
+        this.localSyncIntervalId = setInterval(() => this.syncNow(), 60000);
+        this.cloudSyncIntervalId = setInterval(() => this.cloudSyncNow(), 60000);
+        setTimeout(() => this.cloudSyncNow(), 5000);
+        console.log('[BlackboxAI] Watcher started (local: 60s, cloud: 60s)');
     }
 
     stop(): void {
-        // 上报 watcher 停止事件
         trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'blackboxai' });
-
         if (this.watcher) {
             this.watcher.close();
         }
@@ -111,6 +100,14 @@ export class BlackboxWatcher {
         }
         if (this.cloudSyncTimer) {
             clearTimeout(this.cloudSyncTimer);
+        }
+        if (this.localSyncIntervalId !== null) {
+            clearInterval(this.localSyncIntervalId);
+            this.localSyncIntervalId = null;
+        }
+        if (this.cloudSyncIntervalId !== null) {
+            clearInterval(this.cloudSyncIntervalId);
+            this.cloudSyncIntervalId = null;
         }
     }
 
@@ -125,15 +122,15 @@ export class BlackboxWatcher {
     }
 
     syncNow(): void {
+        if (this.syncInProgress) return;
         const now = Date.now();
-        if (now - this.lastLocalSync < 1000) {
-            return;
-        }
-
+        if (now - this.lastLocalSync < 15000) return;
         this.lastLocalSync = now;
-
-        this.performLocalSync().catch(error => {
-            console.error('[BlackboxAI] Local sync failed:', error);
+        this.syncInProgress = true;
+        setImmediate(() => {
+            this.performLocalSync()
+                .catch(error => console.error('[BlackboxAI] Local sync failed:', error))
+                .finally(() => { this.syncInProgress = false; });
         });
     }
 
@@ -156,7 +153,7 @@ export class BlackboxWatcher {
     }
 
     private async performLocalSync(): Promise<void> {
-        console.log('[BlackboxAI] Starting local sync');
+        await new Promise<void>(r => setImmediate(r));
         const reader = new BlackboxReader(this.storageDir);
 
         if (!reader.exists()) {

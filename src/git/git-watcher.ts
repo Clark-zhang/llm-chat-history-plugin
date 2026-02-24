@@ -103,9 +103,9 @@ export class GitWatcher implements vscode.Disposable {
                 })
             );
 
-            // Scan for Git repositories in subdirectories
-            console.log('[GitWatcher] Starting subdirectory scan...');
-            await this.scanForSubdirectoryRepos();
+            // Scan for Git repositories in subdirectories（在后台执行，避免阻塞激活）
+            console.log('[GitWatcher] Starting subdirectory scan in background...');
+            void this.scanForSubdirectoryRepos();
 
             this.isInitialized = true;
             const totalRepos = this.gitApi.repositories.length + this.discoveredRepos.size;
@@ -552,7 +552,7 @@ export class GitWatcher implements vscode.Disposable {
         console.log(`[GitWatcher] Repository not in VS Code API, using file system watcher + polling: ${repoPath}`);
         
         // Get initial HEAD
-        const initialHead = this.getCurrentHead(repoPath);
+        const initialHead = await this.getCurrentHead(repoPath);
         console.log(`[GitWatcher] Initial HEAD for ${repoPath}: ${initialHead?.substring(0, 7) || 'null'}`);
         if (initialHead) {
             this.lastHeadCommit.set(repoPath, initialHead);
@@ -579,10 +579,10 @@ export class GitWatcher implements vscode.Disposable {
             console.warn(`[GitWatcher] ⚠️ HEAD file not found: ${headFile}`);
         }
 
-        // Also poll periodically (every 5 seconds) as a fallback
+        // Also poll periodically (every 30 seconds) as a fallback
         const pollInterval = setInterval(async () => {
             await this.checkDiscoveredRepoChanges(repoPath);
-        }, 5000);
+        }, 30000);
         
         this.pollIntervals.set(repoPath, pollInterval);
         console.log(`[GitWatcher] Polling interval set up for: ${repoPath} (every 5 seconds)`);
@@ -592,10 +592,12 @@ export class GitWatcher implements vscode.Disposable {
      * Check for changes in a discovered repository
      */
     private async checkDiscoveredRepoChanges(repoPath: string): Promise<void> {
-        const currentHead = this.getCurrentHead(repoPath);
+        const currentHead = await this.getCurrentHead(repoPath);
         const lastHead = this.lastHeadCommit.get(repoPath);
 
-        console.log(`[GitWatcher] Checking changes for ${repoPath}: lastHead=${lastHead?.substring(0, 7) || 'null'}, currentHead=${currentHead?.substring(0, 7) || 'null'}`);
+        if (!currentHead && !lastHead) {
+            return;
+        }
 
         if (currentHead && currentHead !== lastHead) {
             console.log(`[GitWatcher] 🔄 HEAD changed in discovered repo: ${repoPath}, ${lastHead?.substring(0, 7) || 'null'} -> ${currentHead.substring(0, 7)}`);
@@ -647,60 +649,42 @@ export class GitWatcher implements vscode.Disposable {
     /**
      * Get current HEAD commit SHA from a repository
      */
-    private getCurrentHead(repoPath: string): string | null {
+    private async getCurrentHead(repoPath: string): Promise<string | null> {
         try {
-            // First verify this is a valid Git repository
             if (!this.isValidGitRepo(repoPath)) {
-                console.log(`[GitWatcher] Not a valid Git repository: ${repoPath}`);
                 return null;
             }
 
-            // Try reading .git/HEAD directly
             const headFile = path.join(repoPath, '.git', 'HEAD');
-            console.log(`[GitWatcher] Reading HEAD from: ${headFile}`);
-            
-            if (fs.existsSync(headFile)) {
-                const headContent = fs.readFileSync(headFile, 'utf8').trim();
-                console.log(`[GitWatcher] HEAD file content: ${headContent}`);
-                
-                // If it's a ref, resolve it
-                if (headContent.startsWith('ref: ')) {
-                    const refPath = headContent.substring(5);
-                    const refFile = path.join(repoPath, '.git', refPath);
-                    console.log(`[GitWatcher] Resolving ref: ${refFile}`);
-                    
-                    if (fs.existsSync(refFile)) {
-                        const sha = fs.readFileSync(refFile, 'utf8').trim();
-                        console.log(`[GitWatcher] Resolved SHA: ${sha.substring(0, 7)}`);
-                        return sha;
-                    } else {
-                        console.warn(`[GitWatcher] ⚠️ Ref file not found: ${refFile}`);
-                    }
-                } else {
-                    // Direct SHA
-                    console.log(`[GitWatcher] Direct SHA found: ${headContent.substring(0, 7)}`);
-                    return headContent;
-                }
-            } else {
-                console.warn(`[GitWatcher] ⚠️ HEAD file not found: ${headFile}`);
-            }
-            
-            // Fallback to git command (only if we know it's a Git repo)
-            console.log(`[GitWatcher] Falling back to git rev-parse HEAD`);
+            let headContent: string;
+
             try {
-                const sha = execSync(
-                    'git rev-parse HEAD',
-                    { cwd: repoPath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
-                ).trim();
-                console.log(`[GitWatcher] Git command returned SHA: ${sha.substring(0, 7)}`);
-                return sha;
-            } catch (gitError) {
-                // Silently handle git command errors - this is expected in some cases
-                console.debug(`[GitWatcher] Git command failed (this is OK): ${gitError}`);
+                headContent = (await fs.promises.readFile(headFile, 'utf8')).trim();
+            } catch (error: any) {
+                if (error?.code === 'ENOENT') {
+                    return null;
+                }
+                console.debug(`[GitWatcher] Error reading HEAD file for ${repoPath}:`, error);
                 return null;
             }
+            
+            if (headContent.startsWith('ref: ')) {
+                const refPath = headContent.substring(5);
+                const refFile = path.join(repoPath, '.git', refPath);
+                
+                try {
+                    const sha = (await fs.promises.readFile(refFile, 'utf8')).trim();
+                    return sha;
+                } catch (error: any) {
+                    if (error?.code !== 'ENOENT') {
+                        console.debug(`[GitWatcher] Error reading ref file for ${repoPath}:`, error);
+                    }
+                    return null;
+                }
+            } else {
+                return headContent;
+            }
         } catch (error) {
-            // Silently handle all errors to avoid polluting console
             console.debug(`[GitWatcher] Error getting HEAD for ${repoPath}:`, error);
             return null;
         }

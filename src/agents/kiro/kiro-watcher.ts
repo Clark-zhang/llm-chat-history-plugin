@@ -32,6 +32,9 @@ export class KiroWatcher {
     private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private cloudSyncTimer: NodeJS.Timeout | null = null;
+    private localSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private cloudSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private syncInProgress: boolean = false;
     private workspaceRoot: string;
     private workspaceFilter: KiroWorkspaceFilter;
     private t: Translator;
@@ -104,31 +107,17 @@ export class KiroWatcher {
             trackError('watcher_error', String(error), 'kiro');
         });
         
-        // 3. 定时轮询本地保存（每 30 秒）
-        setInterval(() => {
-            this.syncNow();
-        }, 30000); // 30 秒
-        
-        // 4. 定时云端同步（每 60 秒）
-        setInterval(() => {
-            this.cloudSyncNow();
-        }, 60000); // 60 秒
-
-        // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
-        setTimeout(() => {
-            this.cloudSyncNow();
-        }, 5000);
-        
-        console.log('[Kiro] Watcher started (local: 30s, cloud: 60s)');
+        this.localSyncIntervalId = setInterval(() => this.syncNow(), 60000);
+        this.cloudSyncIntervalId = setInterval(() => this.cloudSyncNow(), 60000);
+        setTimeout(() => this.cloudSyncNow(), 5000);
+        console.log('[Kiro] Watcher started (local: 60s, cloud: 60s)');
     }
     
     /**
      * 停止监听
      */
     stop(): void {
-        // 上报 watcher 停止事件
         trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'kiro' });
-
         if (this.watcher) {
             this.watcher.close();
         }
@@ -137,6 +126,14 @@ export class KiroWatcher {
         }
         if (this.cloudSyncTimer) {
             clearTimeout(this.cloudSyncTimer);
+        }
+        if (this.localSyncIntervalId !== null) {
+            clearInterval(this.localSyncIntervalId);
+            this.localSyncIntervalId = null;
+        }
+        if (this.cloudSyncIntervalId !== null) {
+            clearInterval(this.cloudSyncIntervalId);
+            this.cloudSyncIntervalId = null;
         }
     }
     

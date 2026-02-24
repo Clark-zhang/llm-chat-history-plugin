@@ -32,6 +32,9 @@ export class CopilotWatcher {
     private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private cloudSyncTimer: NodeJS.Timeout | null = null;
+    private localSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private cloudSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private syncInProgress: boolean = false;
     private workspaceRoot: string;
     private workspaceFilter: CopilotWorkspaceFilter;
     private t: Translator;
@@ -97,29 +100,28 @@ export class CopilotWatcher {
             trackError('watcher_error', String(error), 'copilot');
         });
         
-        // 3. 定时轮询本地保存（每 30 秒）
-        setInterval(() => {
+        // 3. 定时轮询本地保存（每 60 秒，避免长时间占用扩展宿主导致 Copilot 卡顿）
+        this.localSyncIntervalId = setInterval(() => {
             this.syncNow();
-        }, 30000); // 30 秒
-        
+        }, 60000);
+
         // 4. 定时云端同步（每 60 秒）
-        setInterval(() => {
+        this.cloudSyncIntervalId = setInterval(() => {
             this.cloudSyncNow();
-        }, 60000); // 60 秒
+        }, 60000);
 
         // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
         setTimeout(() => {
             this.cloudSyncNow();
         }, 5000);
-        
-        console.log('[Copilot] Watcher started (local: 30s, cloud: 60s)');
+
+        console.log('[Copilot] Watcher started (local: 60s, cloud: 60s)');
     }
     
     /**
      * 停止监听
      */
     stop(): void {
-        // 上报 watcher 停止事件
         trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'copilot' });
 
         if (this.watcher) {
@@ -130,6 +132,14 @@ export class CopilotWatcher {
         }
         if (this.cloudSyncTimer) {
             clearTimeout(this.cloudSyncTimer);
+        }
+        if (this.localSyncIntervalId !== null) {
+            clearInterval(this.localSyncIntervalId);
+            this.localSyncIntervalId = null;
+        }
+        if (this.cloudSyncIntervalId !== null) {
+            clearInterval(this.cloudSyncIntervalId);
+            this.cloudSyncIntervalId = null;
         }
     }
     
@@ -151,17 +161,23 @@ export class CopilotWatcher {
      * 立即执行本地同步
      */
     syncNow(): void {
-        const now = Date.now();
-        
-        // 避免过于频繁的同步
-        if (now - this.lastLocalSync < 1000) {
+        if (this.syncInProgress) {
             return;
         }
-        
+        const now = Date.now();
+        if (now - this.lastLocalSync < 15000) {
+            return;
+        }
         this.lastLocalSync = now;
-        
-        this.performLocalSync().catch(error => {
-            console.error('[Copilot] Local sync failed:', error);
+        this.syncInProgress = true;
+        setImmediate(() => {
+            this.performLocalSync()
+                .catch(error => {
+                    console.error('[Copilot] Local sync failed:', error);
+                })
+                .finally(() => {
+                    this.syncInProgress = false;
+                });
         });
     }
 
@@ -187,6 +203,7 @@ export class CopilotWatcher {
      * 执行本地同步 - 保存到本地 Markdown 文件
      */
     private async performLocalSync(): Promise<void> {
+        await new Promise<void>(r => setImmediate(r));
         const reader = new CopilotReader(this.storageDir);
 
         if (!reader.exists()) {
@@ -198,7 +215,7 @@ export class CopilotWatcher {
         const sessionsToCache: CachedSession[] = [];
 
         try {
-            const conversations = reader.getAllConversations();
+            const conversations = await reader.getAllConversations();
 
             if (conversations.length === 0) {
                 return;

@@ -32,6 +32,9 @@ export class ClineWatcher {
     private lastCloudSync: number = 0;
     private debounceTimer: NodeJS.Timeout | null = null;
     private cloudSyncTimer: NodeJS.Timeout | null = null;
+    private localSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private cloudSyncIntervalId: ReturnType<typeof setInterval> | null = null;
+    private syncInProgress: boolean = false;
     private workspaceRoot: string;
     private workspaceFilter: ClineWorkspaceFilter;
     private t: Translator;
@@ -89,31 +92,20 @@ export class ClineWatcher {
             trackError('watcher_error', String(error), 'cline');
         });
         
-        // 3. 定时轮询本地保存（每 30 秒）
-        setInterval(() => {
-            this.syncNow();
-        }, 30000); // 30 秒
-        
+        // 3. 定时轮询本地保存（每 60 秒，减轻扩展宿主压力）
+        this.localSyncIntervalId = setInterval(() => this.syncNow(), 60000);
         // 4. 定时云端同步（每 60 秒）
-        setInterval(() => {
-            this.cloudSyncNow();
-        }, 60000); // 60 秒
-
-        // 5. 启动时延迟 5 秒执行一次云端同步（给本地同步时间收集数据）
-        setTimeout(() => {
-            this.cloudSyncNow();
-        }, 5000);
-        
-        console.log('[Cline] Watcher started (local: 30s, cloud: 60s)');
+        this.cloudSyncIntervalId = setInterval(() => this.cloudSyncNow(), 60000);
+        // 5. 启动时延迟 5 秒执行一次云端同步
+        setTimeout(() => this.cloudSyncNow(), 5000);
+        console.log('[Cline] Watcher started (local: 60s, cloud: 60s)');
     }
     
     /**
      * 停止监听
      */
     stop(): void {
-        // 上报 watcher 停止事件
         trackEvent(TelemetryEvents.WATCHER_STOPPED, { source: 'cline' });
-
         if (this.watcher) {
             this.watcher.close();
         }
@@ -122,6 +114,14 @@ export class ClineWatcher {
         }
         if (this.cloudSyncTimer) {
             clearTimeout(this.cloudSyncTimer);
+        }
+        if (this.localSyncIntervalId !== null) {
+            clearInterval(this.localSyncIntervalId);
+            this.localSyncIntervalId = null;
+        }
+        if (this.cloudSyncIntervalId !== null) {
+            clearInterval(this.cloudSyncIntervalId);
+            this.cloudSyncIntervalId = null;
         }
     }
     
@@ -143,17 +143,15 @@ export class ClineWatcher {
      * 立即执行本地同步
      */
     syncNow(): void {
+        if (this.syncInProgress) return;
         const now = Date.now();
-        
-        // 避免过于频繁的同步
-        if (now - this.lastLocalSync < 1000) {
-            return;
-        }
-        
+        if (now - this.lastLocalSync < 15000) return;
         this.lastLocalSync = now;
-        
-        this.performLocalSync().catch(error => {
-            console.error('[Cline] Local sync failed:', error);
+        this.syncInProgress = true;
+        setImmediate(() => {
+            this.performLocalSync()
+                .catch(error => console.error('[Cline] Local sync failed:', error))
+                .finally(() => { this.syncInProgress = false; });
         });
     }
 
@@ -179,6 +177,7 @@ export class ClineWatcher {
      * 执行本地同步 - 保存到本地 Markdown 文件
      */
     private async performLocalSync(): Promise<void> {
+        await new Promise<void>(r => setImmediate(r));
         const reader = new ClineReader(this.storageDir);
 
         if (!reader.exists()) {
@@ -190,7 +189,7 @@ export class ClineWatcher {
         const sessionsToCache: CachedSession[] = [];
 
         try {
-            const tasks = reader.getAllTasks();
+            const tasks = await reader.getAllTasks();
 
             if (tasks.length === 0) {
                 return;
