@@ -20,13 +20,25 @@
 ## website
 - [llm-chat-history.com](https://llm-chat-history.com)
 
-## 💬 Support
+## 📖 Open Source
+
+This project is now open source! Source code is available on GitHub:
+
+👉 **[github.com/Clark-zhang/llm-chat-history-plugin](https://github.com/Clark-zhang/llm-chat-history-plugin)**
+
+Contributions, issues, and pull requests are welcome.
+
+## 💬 Support & Contact
 
 - 📧 **Email**: 857867503@qq.com
 - 🌐 **GitHub Issues**: Report bugs or request features
 
+Paid consulting and collaboration are welcome — feel free to reach out via email for in-depth discussions, custom development, or integration support.
+
+欢迎付费咨询与交流，定制开发、集成支持等需求请直接邮件联系。
+
 ## License
 
-This software is proprietary and confidential.
+Released under the [Apache License 2.0](./LICENSE).
 
-**Copyright (c) 2025 ClarkZhang (Solo). All rights reserved.**
+**Copyright (c) 2025 ClarkZhang**
